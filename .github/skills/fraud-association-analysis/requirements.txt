@@ -1,0 +1,32 @@
+# ============================================================
+# fraud-association-analysis skill — Python dependencies
+# 验证环境：Python 3.14 (Apple Silicon / macOS)
+# 生成自：xueyan_jupyter_workspace agent_skills_test .venv
+# ============================================================
+
+# ── 直接依赖 ─────────────────────────────────────────────────
+
+# 图分析核心；3.2.1 锁版本：networkx >=3.3 在 Python 3.14 下因
+# dataclass(slots=True) 导致 AttributeError，不可升级
+networkx==3.2.1
+
+# Leiden 社群检测（依赖 igraph）
+igraph==1.0.0
+leidenalg==0.11.0
+
+# 社群可视化
+matplotlib==3.10.8
+
+# ── 间接依赖（由上方包拉入，固定版本保证可复现）─────────────
+
+contourpy==1.3.3
+cycler==0.12.1
+fonttools==4.61.1
+kiwisolver==1.4.9
+numpy==2.4.2
+packaging==26.0
+pillow==12.1.0
+pyparsing==3.3.2
+python-dateutil==2.9.0.post0
+six==1.17.0
+texttable==1.7.0

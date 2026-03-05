@@ -16,7 +16,7 @@ import time
 from collections import defaultdict, Counter
 from datetime import datetime
 from dataclasses import asdict
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Set, Tuple
 
 import networkx as nx
 
@@ -218,13 +218,26 @@ def compute_rcr(sub):
 
 
 def compute_mo_scores(data: Dict[str, Any]) -> Dict[str, float]:
-    """计算关联案件相对种子案件的 MO 相似度评分。"""
+    """计算关联案件相对种子案件的 MO 相似度评分。
+
+    种子案件自身（通过案件号识别）会被自动从评分结果中剔除，
+    避免自比较导致高相似统计虚高。
+    """
     seed = data.get("种子案件") or {}
     seed_mo_raw = seed.get("MO特征") or seed
     seed_mo = load_seed_mo(seed_mo_raw)
 
+    # 收集所有需要剔除的 ID：种子案件号，以及种子保单号
+    exclude_ids: Set[str] = set()
+    seed_case_id = str(seed.get("案件号") or "").strip()
+    seed_policy_id = str(seed.get("保单号") or "").strip()
+    if seed_case_id:
+        exclude_ids.add(seed_case_id)
+    if seed_policy_id:
+        exclude_ids.add(seed_policy_id)
+
     claims = data.get("关联案件列表") or []
-    return batch_score(seed_mo, claims)
+    return batch_score(seed_mo, claims, exclude_ids=exclude_ids)
 
 
 def policy_level_mo_scores(data: Dict[str, Any], mo_scores: Dict[str, float]) -> Dict[str, float]:

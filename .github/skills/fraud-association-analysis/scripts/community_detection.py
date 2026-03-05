@@ -469,6 +469,10 @@ def analyze_seed_communities(
         desc = describe_propagation(sub, bridges, rel_dist)
 
         sub_claims = _claims_in_subgraph(sub)
+
+        # 获取种子案件号，用于剔除自比较条目
+        seed_case_id = str((data.get("种子案件") or {}).get("案件号") or "").strip()
+
         high_claims = [
             {
                 "案件号": c.get("案件号"),
@@ -482,6 +486,7 @@ def analyze_seed_communities(
             }
             for c in sub_claims
             if float(c.get("mo_score", 0.0) or 0.0) >= HIGH_SIMILARITY_THRESHOLD
+            and str(c.get("案件号") or "").strip() != seed_case_id
         ]
         high_claims.sort(key=lambda x: x["mo_score"], reverse=True)
 

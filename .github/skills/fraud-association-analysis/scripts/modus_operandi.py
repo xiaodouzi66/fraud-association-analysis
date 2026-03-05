@@ -228,12 +228,22 @@ def compute_mo_score(seed_mo: MOFeature, node_mo: MOFeature) -> float:
     return max(0.0, min(1.0, score))
 
 
-def batch_score(seed_mo: MOFeature, records: Iterable[Dict[str, Any]], los_threshold_days: int = DEFAULT_LOS_THRESHOLD_DAYS) -> Dict[str, float]:
+def batch_score(
+    seed_mo: MOFeature,
+    records: Iterable[Dict[str, Any]],
+    los_threshold_days: int = DEFAULT_LOS_THRESHOLD_DAYS,
+    exclude_ids: Optional[Set[str]] = None,
+) -> Dict[str, float]:
     """对关联案件列表批量计算 mo_score，以案件号为 key 返回评分字典。
 
     ID 字段优先级：案件号 > 保单号 > entity_id > 实体ID，
     兼容新版三层输入格式与旧版传播记录格式。
+
+    Args:
+        exclude_ids: 需要从评分结果中剔除的案件号集合（如种子案件自身），避免
+                     自比较导致的高分污染统计分布。
     """
+    _exclude: Set[str] = set(exclude_ids) if exclude_ids else set()
     result: Dict[str, float] = {}
     for r in records:
         record_id = str(
@@ -241,6 +251,8 @@ def batch_score(seed_mo: MOFeature, records: Iterable[Dict[str, Any]], los_thres
             or r.get("entity_id") or r.get("实体ID") or ""
         ).strip()
         if not record_id:
+            continue
+        if record_id in _exclude:
             continue
         node_mo = extract_mo_feature(r, los_threshold_days=los_threshold_days)
         result[record_id] = round(compute_mo_score(seed_mo, node_mo), 6)
