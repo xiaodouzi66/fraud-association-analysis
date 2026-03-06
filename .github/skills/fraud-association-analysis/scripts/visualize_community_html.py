@@ -82,9 +82,9 @@ def build_hetero_graph(data: Dict[str, Any], min_edge_weight: float = 0.05) -> n
     for e in edges:
         src = str(e.get("源保单号") or "").strip()
         dst = str(e.get("目标保单号") or "").strip()
-        if not src or not dst or src == dst:
+        if not src and not dst:
             continue
-        if src not in G or dst not in G:
+        if src == dst:
             continue
 
         weight = _safe_float(e.get("边权重", 0.0))
@@ -104,9 +104,10 @@ def build_hetero_graph(data: Dict[str, Any], min_edge_weight: float = 0.05) -> n
                 label=f"{rel_type}:{rel_val}",
             )
 
-        if not G.has_edge(src, id_node):
+        # 不要求两端保单同时在 G，单端在 G 即可建连接 ID 节点（第 0 层种子保单可能在边中只出现一次）
+        if src and src in G and not G.has_edge(src, id_node):
             G.add_edge(src, id_node, weight=weight, 关联类型=rel_type, 关联ID值=rel_val)
-        if not G.has_edge(dst, id_node):
+        if dst and dst in G and not G.has_edge(dst, id_node):
             G.add_edge(dst, id_node, weight=weight, 关联类型=rel_type, 关联ID值=rel_val)
 
     return G
@@ -164,19 +165,20 @@ def _community_label_by_pagerank(
     if sub.number_of_nodes() == 0:
         return comm_id
 
-    if sub.number_of_edges() > 0:
-        try:
-            pr = nx.pagerank(sub, weight="weight")
-        except Exception:
-            # 环境缺少 scipy 时回退：使用度中心性近似排名
-            deg = dict(sub.degree())
-            if deg:
-                max_deg = max(deg.values()) or 1
-                pr = {k: v / max_deg for k, v in deg.items()}
-            else:
-                pr = {n: 1.0 for n in sub.nodes()}
-    else:
-        pr = {n: 1.0 for n in sub.nodes()}
+    pr = nx.pagerank(sub, weight="weight") if sub.number_of_edges() > 0 else {n: 1.0 for n in sub.nodes()}
+    # if sub.number_of_edges() > 0:
+    #     try:
+    #         pr = nx.pagerank(sub, weight="weight")
+    #     except Exception:
+    #         # 环境缺少 scipy 时回退：使用度中心性近似排名
+    #         deg = dict(sub.degree())
+    #         if deg:
+    #             max_deg = max(deg.values()) or 1
+    #             pr = {k: v / max_deg for k, v in deg.items()}
+    #         else:
+    #             pr = {n: 1.0 for n in sub.nodes()}
+    # else:
+    #     pr = {n: 1.0 for n in sub.nodes()}
     top = sorted(pr.items(), key=lambda x: x[1], reverse=True)[0][0]
 
     if str(top).startswith(ID_NODE_PREFIX):
@@ -292,7 +294,9 @@ def render_macro_graph(
         )
     )
 
-    os.makedirs(os.path.dirname(output_path), exist_ok=True)
+    dir_part = os.path.dirname(output_path)
+    if dir_part:
+        os.makedirs(dir_part, exist_ok=True)
     graph.render(output_path)
     return output_path
 
@@ -416,7 +420,9 @@ def render_pyvis_graph(
         """
     )
 
-    os.makedirs(os.path.dirname(output_path), exist_ok=True)
+    dir_part = os.path.dirname(output_path)
+    if dir_part:
+        os.makedirs(dir_part, exist_ok=True)
     net.show(output_path, notebook=False)
 
     with open(output_path, "a", encoding="utf-8") as f:
@@ -438,8 +444,13 @@ def render_pyvis_graph(
 
 
 def _top2_risky_communities(leiden_results: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    # 至少有 2 个保单节点的社群才有延可视化意义（孤立种子节点不绘）
+    candidates = [
+        c for c in leiden_results
+        if int(c.get("规模", 0) or 0) >= 2
+    ]
     ranked = sorted(
-        leiden_results,
+        candidates,
         key=lambda x: _safe_float(x.get("社群风险分", 0.0), 0.0),
         reverse=True,
     )
@@ -484,11 +495,21 @@ def generate_html_visualizations(
             cid = str(comm.get("社群编号") or "").strip()
             if not cid:
                 continue
-            members = [n for n, c in node_to_comm.items() if c == cid]
-            if not members:
+            # 先取社群内的保单节点
+            policy_members = [
+                n for n, c in node_to_comm.items()
+                if c == cid and not n.startswith(ID_NODE_PREFIX)
+            ]
+            if not policy_members:
                 continue
-
-            sub = G.subgraph(members).copy()
+            # 扩展：纳入这些保单在异构图中的所有相邻 ID 节点，使可视化完整展示保单↔ID结构
+            id_neighbors: Set[str] = set()
+            for pm in policy_members:
+                if pm in G:
+                    for nb in G.neighbors(pm):
+                        if G.nodes[nb].get("node_type") == "id":
+                            id_neighbors.add(nb)
+            sub = G.subgraph(set(policy_members) | id_neighbors).copy()
             sub_path = os.path.join(output_dir, f"subgraph_{cid}_rank{idx}.html")
             render_pyvis_graph(
                 sub,
