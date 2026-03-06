@@ -15,7 +15,7 @@ import argparse
 import json
 import math
 from collections import Counter, defaultdict
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass, asdict, field
 from typing import Any, Dict, List, Optional, Set, Tuple
 
 import networkx as nx
@@ -64,6 +64,7 @@ class SubCommunityResult:
     传播路径描述: str
     高相似案件列表: List[Dict[str, Any]]
     置信度原因: List[str]
+    hub_id节点列表: Optional[List[Dict[str, Any]]] = field(default_factory=list)
 
 
 def normalize_metric(x: float, p10: float, p90: float) -> float:
@@ -136,6 +137,101 @@ def build_policy_graph(
             关联ID值=str(edge.get("关联ID值") or "未知"),
         )
     return G
+
+
+
+# ── 异构图支持 ─────────────────────────────────────────────────────────────────
+
+def _hetero_node_id(rel_type: str, rel_value: str) -> str:
+    """生成 ID 节点的唯一键（避免与保单号冲突）。"""
+    return f"__id__{rel_type}__{rel_value}"
+
+
+def build_heterogeneous_graph(
+    节点列表: List[Dict[str, Any]],
+    边列表: List[Dict[str, Any]],
+    min_edge_weight: float = DEFAULT_MIN_EDGE_WEIGHT,
+) -> nx.Graph:
+    """构建异构保单-ID图。
+
+    每条原始传播边（源保单, 目标保单, 关联ID值）拆分为两条边：
+      源保单 ↔ ID节点
+      目标保单 ↔ ID节点
+
+    节点类型：node_type="policy"（保单）| "id"（手机号/身份证/代理人ID 等）。
+    """
+    G = nx.Graph()
+    for node in 节点列表:
+        pid = str(node.get("保单号") or "").strip()
+        if not pid:
+            continue
+        G.add_node(
+            pid,
+            node_type="policy",
+            保单号=pid,
+            传播层级=int(node.get("传播层级", 0) or 0),
+            传播风险分=float(node.get("传播风险分", 0.0) or 0.0),
+            是否种子=bool(node.get("是否种子", False)),
+            被保人ID=node.get("被保人ID"),
+            投保日期=node.get("投保日期"),
+            claims=[],
+        )
+
+    for edge in 边列表:
+        src = str(edge.get("源保单号") or "").strip()
+        dst = str(edge.get("目标保单号") or "").strip()
+        if not src or not dst or src == dst:
+            continue
+        if src not in G or dst not in G:
+            continue
+        w = float(edge.get("边权重", 0.0) or 0.0)
+        if w < min_edge_weight:
+            continue
+        rel_type = str(edge.get("关联类型") or "未知")
+        rel_val = str(edge.get("关联ID值") or "未知")
+        id_node = _hetero_node_id(rel_type, rel_val)
+        if id_node not in G:
+            G.add_node(id_node, node_type="id", 关联类型=rel_type, 关联ID值=rel_val, claims=[])
+        for pid in (src, dst):
+            if not G.has_edge(pid, id_node):
+                G.add_edge(pid, id_node, weight=w, 关联类型=rel_type, 关联ID值=rel_val)
+            else:
+                G[pid][id_node]["weight"] = max(G[pid][id_node].get("weight", 0.0), w)
+    return G
+
+
+def reconstruct_policy_subgraph(
+    G: nx.Graph,
+    policy_members: List[str],
+    id_members: List[str],
+) -> nx.Graph:
+    """从异构社群重建保单-保单子图（用于后续指标计算）。
+
+    对每个 ID 节点，将其在该社群内的保单邻居两两相连。
+    边权重 = 1/(degree-1)：degree 越大（中介批量录入）连接权重越弱；
+    小家庭共用身份证（degree=2）权重最高（=1.0）。
+    """
+    sub = nx.Graph()
+    policy_set = set(policy_members)
+    for pid in policy_members:
+        sub.add_node(pid, **{k: v for k, v in G.nodes[pid].items()})
+
+    for id_node in id_members:
+        rel_type = G.nodes[id_node].get("关联类型", "未知")
+        rel_val = G.nodes[id_node].get("关联ID值", "未知")
+        neighbors = [n for n in G.neighbors(id_node) if n in policy_set]
+        deg = len(neighbors)
+        if deg < 2:
+            continue
+        w_contrib = 1.0 / (deg - 1)
+        for i in range(deg):
+            for j in range(i + 1, deg):
+                p1, p2 = neighbors[i], neighbors[j]
+                if sub.has_edge(p1, p2):
+                    sub[p1][p2]["weight"] += w_contrib
+                else:
+                    sub.add_edge(p1, p2, weight=w_contrib, 关联类型=rel_type, 关联ID值=rel_val)
+    return sub
 
 
 def attach_claims_to_graph(
@@ -432,18 +528,29 @@ def analyze_seed_communities(
     min_edge_weight = float(cfg.get("min_edge_weight", DEFAULT_MIN_EDGE_WEIGHT))
     top_k = int(cfg.get("top_bridge_k", DEFAULT_TOP_BRIDGE_K))
     force = bool(cfg.get("force_leiden", False))
+    graph_mode = str(cfg.get("graph_mode", "homogeneous")).lower()
 
     nodes = data.get("保单节点列表") or []
     edges = data.get("传播边列表") or []
     claims = data.get("关联案件列表") or []
 
-    G = build_policy_graph(nodes, edges, min_edge_weight=min_edge_weight)
+    if graph_mode == "heterogeneous":
+        G = build_heterogeneous_graph(nodes, edges, min_edge_weight=min_edge_weight)
+    else:
+        G = build_policy_graph(nodes, edges, min_edge_weight=min_edge_weight)
     attach_claims_to_graph(G, claims, mo_scores)
 
     if not should_run_leiden(G, force=force):
         return [], "skipped"
 
     node_to_comm, algo = run_leiden(G, resolution=resolution)
+
+    # 异构模式下过滤掉 ID 节点，仅用保单节点定位种子社群
+    if graph_mode == "heterogeneous":
+        policy_node_to_comm = {n: c for n, c in node_to_comm.items()
+                               if G.nodes[n].get("node_type", "policy") == "policy"}
+    else:
+        policy_node_to_comm = node_to_comm
 
     seed_policy_ids = {
         str(n.get("保单号"))
@@ -453,12 +560,19 @@ def analyze_seed_communities(
     if not seed_policy_ids and data.get("种子案件", {}).get("保单号"):
         seed_policy_ids.add(str(data["种子案件"]["保单号"]))
 
-    seed_comm_ids = find_seed_communities(node_to_comm, seed_policy_ids)
+    seed_comm_ids = find_seed_communities(policy_node_to_comm, seed_policy_ids)
 
     results: List[SubCommunityResult] = []
     for cid in sorted(seed_comm_ids):
         members = [n for n, c in node_to_comm.items() if c == cid]
-        sub = G.subgraph(members).copy()
+        if graph_mode == "heterogeneous":
+            policy_members = [n for n in members if G.nodes[n].get("node_type", "policy") == "policy"]
+            id_members_in_comm = [n for n in members if G.nodes[n].get("node_type") == "id"]
+            sub = reconstruct_policy_subgraph(G, policy_members, id_members_in_comm)
+        else:
+            policy_members = members
+            id_members_in_comm = []
+            sub = G.subgraph(members).copy()
 
         base = component_metrics_from_claims(sub)
         ext = compute_extended_metrics(sub)
@@ -467,6 +581,17 @@ def analyze_seed_communities(
         rel_dist = relation_type_distribution(sub)
         bridges = compute_bridge_nodes(sub, top_k=top_k)
         desc = describe_propagation(sub, bridges, rel_dist)
+
+        # hub_id节点列表：异构模式下按关联保单数降序取 Top-K
+        hub_id_nodes: List[Dict[str, Any]] = []
+        if graph_mode == "heterogeneous" and id_members_in_comm:
+            id_sorted = sorted(id_members_in_comm, key=lambda n: G.degree(n), reverse=True)
+            for id_n in id_sorted[:top_k]:
+                hub_id_nodes.append({
+                    "关联类型": G.nodes[id_n].get("关联类型"),
+                    "关联ID值": G.nodes[id_n].get("关联ID值"),
+                    "关联保单数": G.degree(id_n),
+                })
 
         sub_claims = _claims_in_subgraph(sub)
 
@@ -500,7 +625,7 @@ def analyze_seed_communities(
         results.append(
             SubCommunityResult(
                 社群编号=cid,
-                包含种子节点=bool(seed_policy_ids & set(members)),
+                包含种子节点=bool(seed_policy_ids & set(policy_members)),
                 规模=sub.number_of_nodes(),
                 边数=sub.number_of_edges(),
                 涉及案件数=len(sub_claims),
@@ -513,6 +638,7 @@ def analyze_seed_communities(
                 传播路径描述=desc,
                 高相似案件列表=high_claims,
                 置信度原因=reasons,
+                hub_id节点列表=hub_id_nodes,
             )
         )
 

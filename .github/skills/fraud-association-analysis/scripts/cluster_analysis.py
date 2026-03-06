@@ -47,6 +47,8 @@ def parse_args():
     p.add_argument("--force-leiden", action="store_true")
     p.add_argument("--leiden-resolution", type=float, default=1.0)
     p.add_argument("--top-bridge-k", type=int, default=5)
+    p.add_argument("--graph-mode", choices=["homogeneous", "heterogeneous"], default="homogeneous",
+                   help="图构建模式：homogeneous=保单同构图，heterogeneous=保单+ID节点异构图")
     return p.parse_args()
 
 
@@ -504,6 +506,7 @@ def analyze_v2(data: Dict[str, Any], config: Dict[str, Any]) -> Dict[str, Any]:
         "min_edge_weight": float(config.get("min_edge_score", DEFAULT_MIN_EDGE_SCORE)),
         "top_bridge_k": int(config.get("top_bridge_k", 5)),
         "force_leiden": bool(config.get("force_leiden", False)),
+        "graph_mode": str(config.get("graph_mode", "homogeneous")),
     }
 
     leiden_results, leiden_algo = analyze_seed_communities(data, mo_scores, config=leiden_cfg)
@@ -533,6 +536,7 @@ def main():
         "force_leiden": args.force_leiden,
         "leiden_resolution": args.leiden_resolution,
         "top_bridge_k": args.top_bridge_k,
+        "graph_mode": args.graph_mode,
     }
 
     t0 = time.time()
