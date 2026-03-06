@@ -786,6 +786,23 @@ def render_section_3(raw: Optional[Dict[str, Any]], mo_scores: Dict[str, float],
     return "\n".join(lines)
 
 
+def render_section_4_placeholder() -> str:
+    """
+    生成 Section 4 占位符。
+    由 Claude（Stage 3）完成解读后，将 <!--INTERPRETATION_PLACEHOLDER-->
+    替换为实际的智能解读内容。
+    """
+    lines: List[str] = []
+    lines.append("## 四、智能解读结论")
+    lines.append("")
+    lines.append("> 本节由 LLM（Claude Stage 3）自动填充，包含社群关联机制解读、跨社群共性信号及 P0/P1/P2 调查建议。")
+    lines.append("> 以下内容待 Stage 3 解读后写入，禁止手动修改占位符标记。")
+    lines.append("")
+    lines.append("<!--INTERPRETATION_PLACEHOLDER-->")
+    lines.append("")
+    return "\n".join(lines)
+
+
 def main():
     args = parse_args()
     with open(args.input, "r", encoding="utf-8") as f:
@@ -831,6 +848,7 @@ def main():
     lines.append(render_section_1(clusters, similar_communities, seed_case_id, similar_claim_total))
     lines.append(render_section_2(similar_communities, suspicious_by_comm, args.viz_dir))
     lines.append(render_section_3(raw, mo_scores, report_dt))
+    lines.append(render_section_4_placeholder())
 
     with open(args.report, "w", encoding="utf-8") as f:
         f.write("\n".join(lines).strip() + "\n")
