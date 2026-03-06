@@ -205,11 +205,12 @@ def reconstruct_policy_subgraph(
     policy_members: List[str],
     id_members: List[str],
 ) -> nx.Graph:
-    """从异构社群重建保单-保单子图（用于后续指标计算）。
+    """[已弃用] 从异构社群通过 1/(deg-1) 投影重建保单-保单子图。
 
-    对每个 ID 节点，将其在该社群内的保单邻居两两相连。
-    边权重 = 1/(degree-1)：degree 越大（中介批量录入）连接权重越弱；
-    小家庭共用身份证（degree=2）权重最高（=1.0）。
+    原设计用于降低高度数 ID 节点（如批量录入代理人）的连接权重，
+    但会错误稀释代理人组织欺诈等高度数节点的风险信号。
+    当前版本改为使用 build_policy_subgraph_for_community，保留原始边权重。
+    此函数仅作兼容保留，不再在主流程中调用。
     """
     sub = nx.Graph()
     policy_set = set(policy_members)
@@ -231,6 +232,51 @@ def reconstruct_policy_subgraph(
                     sub[p1][p2]["weight"] += w_contrib
                 else:
                     sub.add_edge(p1, p2, weight=w_contrib, 关联类型=rel_type, 关联ID值=rel_val)
+    return sub
+
+
+def build_policy_subgraph_for_community(
+    G: nx.Graph,
+    policy_members: List[str],
+    edges_list: List[Dict[str, Any]],
+    min_edge_weight: float = DEFAULT_MIN_EDGE_WEIGHT,
+) -> nx.Graph:
+    """异构模式下，不做二部图投影，直接从原始传播边为已确定社群构建保单子图。
+
+    Leiden 在异构图（保单 + ID 节点）上完成分群后，指标计算需要保单-保单视角。
+    本函数从原始 传播边列表 中筛选两端均属于本社群的边，
+    直接使用原始边权重（不做 1/(degree-1) 降权），
+    确保代理人聚集、家庭共保等信号均按原始权重保留。
+
+    Args:
+        G:             异构主图（用于读取已附着 claims 的保单节点属性）。
+        policy_members: Leiden 分配到本社群的保单节点列表。
+        edges_list:    原始 传播边列表（data["传播边列表"]）。
+        min_edge_weight: 边权重过滤阈值。
+
+    Returns:
+        仅含保单节点的 nx.Graph，边来自原始数据，权重未降权。
+    """
+    policy_set = set(policy_members)
+    sub = nx.Graph()
+    for pid in policy_members:
+        if pid in G.nodes:
+            sub.add_node(pid, **{k: v for k, v in G.nodes[pid].items()})
+
+    for edge in edges_list:
+        src = str(edge.get("源保单号") or "").strip()
+        dst = str(edge.get("目标保单号") or "").strip()
+        if src not in policy_set or dst not in policy_set or src == dst:
+            continue
+        w = float(edge.get("边权重", 0.0) or 0.0)
+        if w < min_edge_weight:
+            continue
+        rel_type = str(edge.get("关联类型") or "未知")
+        rel_val = str(edge.get("关联ID值") or "未知")
+        if sub.has_edge(src, dst):
+            sub[src][dst]["weight"] = max(sub[src][dst].get("weight", 0.0), w)
+        else:
+            sub.add_edge(src, dst, weight=w, 关联类型=rel_type, 关联ID值=rel_val)
     return sub
 
 
@@ -568,7 +614,8 @@ def analyze_seed_communities(
         if graph_mode == "heterogeneous":
             policy_members = [n for n in members if G.nodes[n].get("node_type", "policy") == "policy"]
             id_members_in_comm = [n for n in members if G.nodes[n].get("node_type") == "id"]
-            sub = reconstruct_policy_subgraph(G, policy_members, id_members_in_comm)
+            # 不做二部图投影：直接从原始传播边筛选社群内边，保留原始权重
+            sub = build_policy_subgraph_for_community(G, policy_members, edges, min_edge_weight)
         else:
             policy_members = members
             id_members_in_comm = []
