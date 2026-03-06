@@ -124,7 +124,7 @@ def component_metrics(G, comp_nodes):
     S_avg = sum(scores)/len(scores) if scores else 0.0
     H = sum(1 for s in scores if s>=0.6)/N if N>0 else 0.0
 
-    # burst: find max high-risk nodes in 24h sliding window
+    # burst: find max high-risk nodes in 7-day sliding window
     ts_list = []
     for n in sub.nodes():
         ts = None
@@ -139,7 +139,7 @@ def component_metrics(G, comp_nodes):
     max_count = 0
     for i in range(len(ts_list)):
         j=i
-        while j < len(ts_list) and (ts_list[j][1] - ts_list[i][1]).total_seconds() <= 24*3600:
+        while j < len(ts_list) and (ts_list[j][1] - ts_list[i][1]).total_seconds() <= 24*7*3600:
             j+=1
         window_nodes = ts_list[i:j]
         # count high-risk among window
@@ -509,7 +509,7 @@ def analyze_v2(data: Dict[str, Any], config: Dict[str, Any]) -> Dict[str, Any]:
         "graph_mode": str(config.get("graph_mode", "homogeneous")),
     }
 
-    leiden_results, leiden_algo = analyze_seed_communities(data, mo_scores, config=leiden_cfg)
+    leiden_results, leiden_algo, node_to_comm_full = analyze_seed_communities(data, mo_scores, config=leiden_cfg)
 
     if isinstance(leiden_results, list):
         leiden_json = [asdict(x) for x in leiden_results]
@@ -523,6 +523,8 @@ def analyze_v2(data: Dict[str, Any], config: Dict[str, Any]) -> Dict[str, Any]:
         "leiden_算法": leiden_algo,
         "leiden_社群": leiden_json,
         "mo_scores": mo_scores,
+        # 全图节点→社群映射，供 visualize_community_html.py 直接使用，无需重跑 Leiden
+        "node_to_community_map": node_to_comm_full,
     }
 
 

@@ -568,7 +568,12 @@ def analyze_seed_communities(
     data: Dict[str, Any],
     mo_scores: Dict[str, float],
     config: Optional[Dict[str, Any]] = None,
-) -> Tuple[List[SubCommunityResult], str]:
+) -> Tuple[List[SubCommunityResult], str, Dict[str, str]]:
+    """
+    返回 (results, algo, node_to_comm_full)。
+    node_to_comm_full：全图节点→社群ID 映射（异构模式下同时包含保单节点和 ID 节点），
+    供 visualize_community_html.py 直接读取，避免重新运行 Leiden。
+    """
     cfg = config or {}
     resolution = float(cfg.get("resolution", DEFAULT_LEIDEN_RESOLUTION))
     min_edge_weight = float(cfg.get("min_edge_weight", DEFAULT_MIN_EDGE_WEIGHT))
@@ -690,7 +695,7 @@ def analyze_seed_communities(
         )
 
     results.sort(key=lambda x: x.社群风险分, reverse=True)
-    return results, algo
+    return results, algo, node_to_comm
 
 
 def parse_args() -> argparse.Namespace:
@@ -716,7 +721,7 @@ def main() -> None:
     mo_json = _load_json(args.mo_scores)
     mo_scores = mo_json.get("节点MO评分", {}) if isinstance(mo_json, dict) else {}
 
-    results, algo = analyze_seed_communities(
+    results, algo, node_to_comm = analyze_seed_communities(
         data,
         mo_scores,
         config={
@@ -732,6 +737,7 @@ def main() -> None:
         "分辨率": args.resolution,
         "社群总数": len(results),
         "种子所在社群": [asdict(x) for x in results],
+        "node_to_community_map": node_to_comm,
         "参数": {
             "最小边权重": args.min_edge_weight,
             "桥接节点TopK": args.top_bridge_k,

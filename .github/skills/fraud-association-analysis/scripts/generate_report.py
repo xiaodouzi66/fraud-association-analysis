@@ -16,6 +16,8 @@ from collections import Counter, defaultdict
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Set, Tuple
 
+from visualize_community_html import generate_html_visualizations
+
 
 MEDIUM_SIM_THRESHOLD = 0.4
 HIGH_SIM_THRESHOLD = 0.6
@@ -36,6 +38,7 @@ def parse_args():
     p.add_argument("input", help="cluster_analysis.py v2 输出 JSON")
     p.add_argument("--raw-input", default=None, help="原始三层输入 JSON（可选，用于全局统计）")
     p.add_argument("--viz-dir", default=None, help="社群可视化 PNG 目录（可选）")
+    p.add_argument("--max-viz-nodes", type=int, default=300, help="HTML子图超过该节点数才过滤degree=1")
     p.add_argument("--report", default="report_v2.md")
     return p.parse_args()
 
@@ -789,13 +792,13 @@ def render_section_3(raw: Optional[Dict[str, Any]], mo_scores: Dict[str, float],
 def render_section_4_placeholder() -> str:
     """
     生成 Section 4 占位符。
-    由 Claude（Stage 3）完成解读后，将 <!--INTERPRETATION_PLACEHOLDER-->
+    由 LLM 完成解读后，将 <!--INTERPRETATION_PLACEHOLDER-->
     替换为实际的智能解读内容。
     """
     lines: List[str] = []
     lines.append("## 四、智能解读结论")
     lines.append("")
-    lines.append("> 本节由 LLM（Claude Stage 3）自动填充，包含社群关联机制解读、跨社群共性信号及 P0/P1/P2 调查建议。")
+    lines.append("> 本节由 LLM 自动填充，包含社群关联机制解读、跨社群共性信号及 P0/P1/P2 调查建议。")
     lines.append("> 以下内容待 Stage 3 解读后写入，禁止手动修改占位符标记。")
     lines.append("")
     lines.append("<!--INTERPRETATION_PLACEHOLDER-->")
@@ -839,7 +842,7 @@ def main():
     })
 
     lines: List[str] = []
-    lines.append("# 欺诈关联分析报告（v3）")
+    lines.append("# 欺诈关联分析报告")
     lines.append(f"生成时间：{datetime.now().isoformat()}")
     if seed_case_id:
         lines.append(f"种子案件：{seed_case_id}")
@@ -854,6 +857,19 @@ def main():
         f.write("\n".join(lines).strip() + "\n")
 
     print("Wrote report to", args.report)
+
+    if args.raw_input:
+        output_dir = args.viz_dir or os.path.dirname(args.report) or "."
+        try:
+            viz_result = generate_html_visualizations(
+                raw_input_path=args.raw_input,
+                cluster_output_path=args.input,
+                output_dir=output_dir,
+                max_nodes_before_filter=int(args.max_viz_nodes),
+            )
+            print("Wrote HTML visualizations:", json.dumps(viz_result, ensure_ascii=False))
+        except Exception as e:
+            print("[WARN] HTML visualization failed:", e)
 
 
 if __name__ == '__main__':
