@@ -113,6 +113,56 @@ def build_hetero_graph(data: Dict[str, Any], min_edge_weight: float = 0.05) -> n
     return G
 
 
+def build_community_graph_from_edges(
+    raw_edges: List[Dict[str, Any]],
+    policy_set: Set[str],
+    policy_attrs: Dict[str, Dict[str, Any]],
+) -> nx.Graph:
+    """为指定保单集合构建保单↔ID 二部图。
+
+    直接扫描传播边列表，凡 src 或 dst 在 policy_set 中的边均纳入，
+    不过滤 min_edge_weight（子社群边数少，全量保留以保证结构完整性）。
+    """
+    G = nx.Graph()
+    for pid in policy_set:
+        attrs = policy_attrs.get(pid, {})
+        G.add_node(
+            pid,
+            node_type="policy",
+            label=pid,
+            是否种子=bool(attrs.get("是否种子", False)),
+            传播层级=int(attrs.get("传播层级", 0) or 0),
+            传播风险分=_safe_float(attrs.get("传播风险分", 0.0)),
+        )
+
+    for e in raw_edges:
+        src = str(e.get("源保单号") or "").strip()
+        dst = str(e.get("目标保单号") or "").strip()
+        if not src and not dst:
+            continue
+        if src not in policy_set and dst not in policy_set:
+            continue
+        rel_type = str(e.get("关联类型") or "未知")
+        rel_val = str(e.get("关联ID值") or "未知")
+        weight = _safe_float(e.get("边权重", 0.0))
+        id_node = _normalize_id_node(rel_type, rel_val)
+
+        if id_node not in G:
+            G.add_node(
+                id_node,
+                node_type="id",
+                关联类型=rel_type,
+                关联ID值=rel_val,
+                label=f"{rel_type}:{rel_val}",
+            )
+        if src in policy_set and not G.has_edge(src, id_node):
+            G.add_edge(src, id_node, weight=weight, 关联类型=rel_type, 关联ID值=rel_val)
+        if dst in policy_set and not G.has_edge(dst, id_node):
+            G.add_edge(dst, id_node, weight=weight, 关联类型=rel_type, 关联ID值=rel_val)
+
+    return G
+
+
 def _risk_to_red(score: float, min_score: float, max_score: float) -> str:
     if max_score <= min_score:
         return MACRO_RED_SCALE[-1]
@@ -153,70 +203,73 @@ def _extract_comm_size_map(leiden_results: List[Dict[str, Any]], node_to_comm: D
     return size_map
 
 
-def _community_label_by_pagerank(
-    G: nx.Graph,
+def _community_label_by_degree(
+    raw_edges: List[Dict[str, Any]],
     comm_id: str,
     node_to_comm: Dict[str, str],
 ) -> str:
-    members = [n for n, c in node_to_comm.items() if c == comm_id]
+    """用传播边中的出现频次（度）找出该社群内最具代表性的保单作为标签。"""
+    members = {n for n, c in node_to_comm.items() if c == comm_id}
     if not members:
         return comm_id
-    sub = G.subgraph(members).copy()
-    if sub.number_of_nodes() == 0:
-        return comm_id
 
-    pr = nx.pagerank(sub, weight="weight") if sub.number_of_edges() > 0 else {n: 1.0 for n in sub.nodes()}
-    # if sub.number_of_edges() > 0:
-    #     try:
-    #         pr = nx.pagerank(sub, weight="weight")
-    #     except Exception:
-    #         # 环境缺少 scipy 时回退：使用度中心性近似排名
-    #         deg = dict(sub.degree())
-    #         if deg:
-    #             max_deg = max(deg.values()) or 1
-    #             pr = {k: v / max_deg for k, v in deg.items()}
-    #         else:
-    #             pr = {n: 1.0 for n in sub.nodes()}
-    # else:
-    #     pr = {n: 1.0 for n in sub.nodes()}
-    top = sorted(pr.items(), key=lambda x: x[1], reverse=True)[0][0]
+    deg: Dict[str, int] = defaultdict(int)
+    for e in raw_edges:
+        src = str(e.get("源保单号") or "").strip()
+        dst = str(e.get("目标保单号") or "").strip()
+        if src in members:
+            deg[src] += 1
+        if dst in members:
+            deg[dst] += 1
 
-    if str(top).startswith(ID_NODE_PREFIX):
-        rel_type = str(sub.nodes[top].get("关联类型") or "ID")
-        rel_val = str(sub.nodes[top].get("关联ID值") or top)
-        short = rel_val[:12] + "..." if len(rel_val) > 12 else rel_val
-        return f"{comm_id} ({rel_type}:{short})"
+    if not deg:
+        top = next(iter(members))
+    else:
+        top = max(deg.items(), key=lambda x: x[1])[0]
+
     short = str(top)[:12] + "..." if len(str(top)) > 12 else str(top)
     return f"{comm_id} ({short})"
 
 
 def build_macro_edges(
-    G: nx.Graph,
+    raw_edges: List[Dict[str, Any]],
     node_to_comm: Dict[str, str],
 ) -> Dict[Tuple[str, str], Dict[str, Any]]:
-    edge_stats: Dict[Tuple[str, str], Dict[str, Any]] = defaultdict(lambda: {"weight": 0, "relation_types": set()})
+    """遍历传播边列表，统计跨社群的共享 ID 数量。
 
-    for node, attrs in G.nodes(data=True):
-        if attrs.get("node_type") != "id":
+    每条边 (src_policy, dst_policy, rel_type, rel_id_value)：
+      - 查 node_to_comm 确认两端所属社群
+      - 若社群不同，则该 rel_id_value 是跨社群的共享 ID
+    用 (comm_a, comm_b, rel_id_value) 三元组去重，防止同一 ID
+    因多条边被重复计数。
+    """
+    # seen[(comm_a, comm_b)] = set of unique rel_id_values
+    seen: Dict[Tuple[str, str], Set[str]] = defaultdict(set)
+    rel_types: Dict[Tuple[str, str], Set[str]] = defaultdict(set)
+
+    for e in raw_edges:
+        src = str(e.get("源保单号") or "").strip()
+        dst = str(e.get("目标保单号") or "").strip()
+        if not src or not dst:
             continue
-
-        policy_neighbors = [n for n in G.neighbors(node) if G.nodes[n].get("node_type") == "policy"]
-        comms = sorted({node_to_comm.get(p) for p in policy_neighbors if node_to_comm.get(p)})
-        if len(comms) < 2:
+        comm_src = node_to_comm.get(src)
+        comm_dst = node_to_comm.get(dst)
+        if not comm_src or not comm_dst or comm_src == comm_dst:
             continue
+        rel_type = str(e.get("关联类型") or "未知")
+        rel_val = str(e.get("关联ID值") or "")
+        key: Tuple[str, str] = tuple(sorted([comm_src, comm_dst]))  # type: ignore[assignment]
+        seen[key].add(rel_val)
+        rel_types[key].add(rel_type)
 
-        rel_type = str(attrs.get("关联类型") or "未知")
-        for i in range(len(comms)):
-            for j in range(i + 1, len(comms)):
-                key = (comms[i], comms[j])
-                edge_stats[key]["weight"] += 1
-                edge_stats[key]["relation_types"].add(rel_type)
-
-    return edge_stats
+    return {
+        key: {"weight": len(ids), "relation_types": rel_types[key]}
+        for key, ids in seen.items()
+    }
 
 
 def render_macro_graph(
-    G: nx.Graph,
+    raw_edges: List[Dict[str, Any]],
     leiden_results: List[Dict[str, Any]],
     node_to_comm: Dict[str, str],
     output_path: str,
@@ -235,7 +288,7 @@ def render_macro_graph(
     for cid in comm_ids:
         size_val = size_map.get(cid, 1)
         risk_val = risk_map.get(cid, 0.0)
-        label = _community_label_by_pagerank(G, cid, node_to_comm)
+        label = _community_label_by_degree(raw_edges, cid, node_to_comm)
         nodes.append(
             {
                 "name": cid,
@@ -249,7 +302,7 @@ def render_macro_graph(
             }
         )
 
-    macro_edges = build_macro_edges(G, node_to_comm)
+    macro_edges = build_macro_edges(raw_edges, node_to_comm)
     links = []
     if macro_edges:
         weights = [v["weight"] for v in macro_edges.values()]
@@ -467,7 +520,14 @@ def generate_html_visualizations(
     raw = _load_json(raw_input_path)
     cluster = _load_json(cluster_output_path)
 
-    G = build_hetero_graph(raw, min_edge_weight=min_edge_weight)
+    raw_edges: List[Dict[str, Any]] = raw.get("传播边列表") or []
+
+    # 构建保单属性字典，供子社群构图时使用
+    policy_attrs: Dict[str, Dict[str, Any]] = {
+        str(n.get("保单号") or "").strip(): n
+        for n in (raw.get("保单节点列表") or [])
+        if n.get("保单号")
+    }
 
     leiden_results = cluster.get("leiden_社群") or []
     node_to_comm = cluster.get("node_to_community_map") or {}
@@ -481,9 +541,10 @@ def generate_html_visualizations(
     has_leiden = bool(leiden_results) and bool(node_to_comm)
 
     if has_leiden:
+        # 宏观社群图：直接用原始边列表 + node_to_community_map
         macro_file = os.path.join(output_dir, "macro_community_graph.html")
         rendered = render_macro_graph(
-            G,
+            raw_edges=raw_edges,
             leiden_results=leiden_results,
             node_to_comm=node_to_comm,
             output_path=macro_file,
@@ -495,21 +556,15 @@ def generate_html_visualizations(
             cid = str(comm.get("社群编号") or "").strip()
             if not cid:
                 continue
-            # 先取社群内的保单节点
-            policy_members = [
+            # 社群内保单集合：从 node_to_community_map 取（仅保单，无 __id__ 前缀）
+            policy_set: Set[str] = {
                 n for n, c in node_to_comm.items()
                 if c == cid and not n.startswith(ID_NODE_PREFIX)
-            ]
-            if not policy_members:
+            }
+            if not policy_set:
                 continue
-            # 扩展：纳入这些保单在异构图中的所有相邻 ID 节点，使可视化完整展示保单↔ID结构
-            id_neighbors: Set[str] = set()
-            for pm in policy_members:
-                if pm in G:
-                    for nb in G.neighbors(pm):
-                        if G.nodes[nb].get("node_type") == "id":
-                            id_neighbors.add(nb)
-            sub = G.subgraph(set(policy_members) | id_neighbors).copy()
+            # 直接扫描传播边列表构建子社群图（保单↔ID 二部图）
+            sub = build_community_graph_from_edges(raw_edges, policy_set, policy_attrs)
             sub_path = os.path.join(output_dir, f"subgraph_{cid}_rank{idx}.html")
             render_pyvis_graph(
                 sub,
@@ -519,6 +574,8 @@ def generate_html_visualizations(
             )
             generated_files["subgraphs"].append(sub_path)
     else:
+        # 无 Leiden 时才构建全量异构图
+        G = build_hetero_graph(raw, min_edge_weight=min_edge_weight)
         full_path = os.path.join(output_dir, "full_graph.html")
         render_pyvis_graph(
             G,
@@ -527,11 +584,17 @@ def generate_html_visualizations(
             max_nodes_before_filter=max_nodes_before_filter,
         )
         generated_files["full"] = full_path
+        return {
+            "has_leiden": has_leiden,
+            "graph_nodes": G.number_of_nodes(),
+            "graph_edges": G.number_of_edges(),
+            "generated_files": generated_files,
+        }
 
     return {
         "has_leiden": has_leiden,
-        "graph_nodes": G.number_of_nodes(),
-        "graph_edges": G.number_of_edges(),
+        "raw_edges_count": len(raw_edges),
+        "communities_total": len(leiden_results),
         "generated_files": generated_files,
     }
 
