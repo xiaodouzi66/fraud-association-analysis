@@ -1,0 +1,758 @@
+<html>
+    <head>
+        <meta charset="utf-8">
+        
+            <script>function neighbourhoodHighlight(params) {
+  // console.log("in nieghbourhoodhighlight");
+  allNodes = nodes.get({ returnType: "Object" });
+  // originalNodes = JSON.parse(JSON.stringify(allNodes));
+  // if something is selected:
+  if (params.nodes.length > 0) {
+    highlightActive = true;
+    var i, j;
+    var selectedNode = params.nodes[0];
+    var degrees = 2;
+
+    // mark all nodes as hard to read.
+    for (let nodeId in allNodes) {
+      // nodeColors[nodeId] = allNodes[nodeId].color;
+      allNodes[nodeId].color = "rgba(200,200,200,0.5)";
+      if (allNodes[nodeId].hiddenLabel === undefined) {
+        allNodes[nodeId].hiddenLabel = allNodes[nodeId].label;
+        allNodes[nodeId].label = undefined;
+      }
+    }
+    var connectedNodes = network.getConnectedNodes(selectedNode);
+    var allConnectedNodes = [];
+
+    // get the second degree nodes
+    for (i = 1; i < degrees; i++) {
+      for (j = 0; j < connectedNodes.length; j++) {
+        allConnectedNodes = allConnectedNodes.concat(
+          network.getConnectedNodes(connectedNodes[j])
+        );
+      }
+    }
+
+    // all second degree nodes get a different color and their label back
+    for (i = 0; i < allConnectedNodes.length; i++) {
+      // allNodes[allConnectedNodes[i]].color = "pink";
+      allNodes[allConnectedNodes[i]].color = "rgba(150,150,150,0.75)";
+      if (allNodes[allConnectedNodes[i]].hiddenLabel !== undefined) {
+        allNodes[allConnectedNodes[i]].label =
+          allNodes[allConnectedNodes[i]].hiddenLabel;
+        allNodes[allConnectedNodes[i]].hiddenLabel = undefined;
+      }
+    }
+
+    // all first degree nodes get their own color and their label back
+    for (i = 0; i < connectedNodes.length; i++) {
+      // allNodes[connectedNodes[i]].color = undefined;
+      allNodes[connectedNodes[i]].color = nodeColors[connectedNodes[i]];
+      if (allNodes[connectedNodes[i]].hiddenLabel !== undefined) {
+        allNodes[connectedNodes[i]].label =
+          allNodes[connectedNodes[i]].hiddenLabel;
+        allNodes[connectedNodes[i]].hiddenLabel = undefined;
+      }
+    }
+
+    // the main node gets its own color and its label back.
+    // allNodes[selectedNode].color = undefined;
+    allNodes[selectedNode].color = nodeColors[selectedNode];
+    if (allNodes[selectedNode].hiddenLabel !== undefined) {
+      allNodes[selectedNode].label = allNodes[selectedNode].hiddenLabel;
+      allNodes[selectedNode].hiddenLabel = undefined;
+    }
+  } else if (highlightActive === true) {
+    // console.log("highlightActive was true");
+    // reset all nodes
+    for (let nodeId in allNodes) {
+      // allNodes[nodeId].color = "purple";
+      allNodes[nodeId].color = nodeColors[nodeId];
+      // delete allNodes[nodeId].color;
+      if (allNodes[nodeId].hiddenLabel !== undefined) {
+        allNodes[nodeId].label = allNodes[nodeId].hiddenLabel;
+        allNodes[nodeId].hiddenLabel = undefined;
+      }
+    }
+    highlightActive = false;
+  }
+
+  // transform the object into an array
+  var updateArray = [];
+  if (params.nodes.length > 0) {
+    for (let nodeId in allNodes) {
+      if (allNodes.hasOwnProperty(nodeId)) {
+        // console.log(allNodes[nodeId]);
+        updateArray.push(allNodes[nodeId]);
+      }
+    }
+    nodes.update(updateArray);
+  } else {
+    // console.log("Nothing was selected");
+    for (let nodeId in allNodes) {
+      if (allNodes.hasOwnProperty(nodeId)) {
+        // console.log(allNodes[nodeId]);
+        // allNodes[nodeId].color = {};
+        updateArray.push(allNodes[nodeId]);
+      }
+    }
+    nodes.update(updateArray);
+  }
+}
+
+function filterHighlight(params) {
+  allNodes = nodes.get({ returnType: "Object" });
+  // if something is selected:
+  if (params.nodes.length > 0) {
+    filterActive = true;
+    let selectedNodes = params.nodes;
+
+    // hiding all nodes and saving the label
+    for (let nodeId in allNodes) {
+      allNodes[nodeId].hidden = true;
+      if (allNodes[nodeId].savedLabel === undefined) {
+        allNodes[nodeId].savedLabel = allNodes[nodeId].label;
+        allNodes[nodeId].label = undefined;
+      }
+    }
+
+    for (let i=0; i < selectedNodes.length; i++) {
+      allNodes[selectedNodes[i]].hidden = false;
+      if (allNodes[selectedNodes[i]].savedLabel !== undefined) {
+        allNodes[selectedNodes[i]].label = allNodes[selectedNodes[i]].savedLabel;
+        allNodes[selectedNodes[i]].savedLabel = undefined;
+      }
+    }
+
+  } else if (filterActive === true) {
+    // reset all nodes
+    for (let nodeId in allNodes) {
+      allNodes[nodeId].hidden = false;
+      if (allNodes[nodeId].savedLabel !== undefined) {
+        allNodes[nodeId].label = allNodes[nodeId].savedLabel;
+        allNodes[nodeId].savedLabel = undefined;
+      }
+    }
+    filterActive = false;
+  }
+
+  // transform the object into an array
+  var updateArray = [];
+  if (params.nodes.length > 0) {
+    for (let nodeId in allNodes) {
+      if (allNodes.hasOwnProperty(nodeId)) {
+        updateArray.push(allNodes[nodeId]);
+      }
+    }
+    nodes.update(updateArray);
+  } else {
+    for (let nodeId in allNodes) {
+      if (allNodes.hasOwnProperty(nodeId)) {
+        updateArray.push(allNodes[nodeId]);
+      }
+    }
+    nodes.update(updateArray);
+  }
+}
+
+function selectNode(nodes) {
+  network.selectNodes(nodes);
+  neighbourhoodHighlight({ nodes: nodes });
+  return nodes;
+}
+
+function selectNodes(nodes) {
+  network.selectNodes(nodes);
+  filterHighlight({nodes: nodes});
+  return nodes;
+}
+
+function highlightFilter(filter) {
+  let selectedNodes = []
+  let selectedProp = filter['property']
+  if (filter['item'] === 'node') {
+    let allNodes = nodes.get({ returnType: "Object" });
+    for (let nodeId in allNodes) {
+      if (allNodes[nodeId][selectedProp] && filter['value'].includes((allNodes[nodeId][selectedProp]).toString())) {
+        selectedNodes.push(nodeId)
+      }
+    }
+  }
+  else if (filter['item'] === 'edge'){
+    let allEdges = edges.get({returnType: 'object'});
+    // check if the selected property exists for selected edge and select the nodes connected to the edge
+    for (let edge in allEdges) {
+      if (allEdges[edge][selectedProp] && filter['value'].includes((allEdges[edge][selectedProp]).toString())) {
+        selectedNodes.push(allEdges[edge]['from'])
+        selectedNodes.push(allEdges[edge]['to'])
+      }
+    }
+  }
+  selectNodes(selectedNodes)
+}</script>
+            <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/vis-network/9.1.2/dist/dist/vis-network.min.css" integrity="sha512-WgxfT5LWjfszlPHXRmBWHkV2eceiWTOBvrKCNbdgDYTHrT2AeLCGbF4sZlZw3UMN3WtL0tGUoIAKsu8mllg/XA==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+            <script src="https://cdnjs.cloudflare.com/ajax/libs/vis-network/9.1.2/dist/vis-network.min.js" integrity="sha512-LnvoEWDFrqGHlHmDD2101OrLcbsfkrzoSpvtSQtxK3RMnRV0eOkhhBN2dXHKRrUU8p2DGRTk35n4O8nWSVe1mQ==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+            
+            
+            
+            
+            
+            
+                <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/tom-select/2.0.0-rc.4/css/tom-select.min.css" integrity="sha512-43fHB3GLgZfz8QXl1RPQ8O66oIgv3po9cJ5erMt1c4QISq9dYb195T3vr5ImnJPXuVroKcGBPXBFKETW8jrPNQ==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+                <script src="https://cdnjs.cloudflare.com/ajax/libs/tom-select/2.0.0-rc.4/js/tom-select.complete.js" integrity="sha512-jeF9CfnvzDiw9G9xiksVjxR2lib44Gnovvkv+3CgCG6NXCD4gqlA5nDAVW5WjpA+i+/zKsUWV5xNEbW1X/HH0Q==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+            
+
+        
+<center>
+<h1></h1>
+</center>
+
+<!-- <link rel="stylesheet" href="../node_modules/vis/dist/vis.min.css" type="text/css" />
+<script type="text/javascript" src="../node_modules/vis/dist/vis.js"> </script>-->
+        <link
+          href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.0-beta3/dist/css/bootstrap.min.css"
+          rel="stylesheet"
+          integrity="sha384-eOJMYsd53ii+scO/bJGFsiCZc+5NDVN2yr8+0RDqr0Ql0h+rP48ckxlpbzKgwra6"
+          crossorigin="anonymous"
+        />
+        <script
+          src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.0-beta3/dist/js/bootstrap.bundle.min.js"
+          integrity="sha384-JEW9xMcG8R+pH31jmWH6WWP0WintQrMb4s7ZOdauHnUtxwoG2vI5DkLtS3qm9Ekf"
+          crossorigin="anonymous"
+        ></script>
+
+
+        <center>
+          <h1></h1>
+        </center>
+        <style type="text/css">
+
+             #mynetwork {
+                 width: 100%;
+                 height: 900px;
+                 background-color: #ffffff;
+                 border: 1px solid lightgray;
+                 position: relative;
+                 float: left;
+             }
+
+             
+
+             
+             #config {
+                 float: left;
+                 width: 400px;
+                 height: 600px;
+             }
+             
+
+             
+        </style>
+    </head>
+
+
+    <body>
+        <div class="card" style="width: 100%">
+            
+                <div id="select-menu" class="card-header">
+                    <div class="row no-gutters">
+                        <div class="col-10 pb-2">
+                            <select
+                            class="form-select"
+                            aria-label="Default select example"
+                            onchange="selectNode([value]);"
+                            id="select-node"
+                            placeholder="Select node..."
+                            >
+                                <option selected>Select a Node by ID</option>
+                                
+                                    <option value="IH1100592050330309">IH1100592050330309</option>
+                                
+                                    <option value="PI157DH250495586222564">PI157DH250495586222564</option>
+                                
+                                    <option value="IH1100514246268024">IH1100514246268024</option>
+                                
+                                    <option value="IH1100585086190314">IH1100585086190314</option>
+                                
+                                    <option value="PI157CG250976086705617">PI157CG250976086705617</option>
+                                
+                                    <option value="PI09134230355698401496">PI09134230355698401496</option>
+                                
+                                    <option value="IH1100585718040182">IH1100585718040182</option>
+                                
+                                    <option value="IH1100585716438801">IH1100585716438801</option>
+                                
+                                    <option value="IH1100570439844733">IH1100570439844733</option>
+                                
+                                    <option value="IH1100592052259208">IH1100592052259208</option>
+                                
+                                    <option value="IH1100577318469929">IH1100577318469929</option>
+                                
+                                    <option value="PI157CP250991847126790">PI157CP250991847126790</option>
+                                
+                                    <option value="IH1100545830018745">IH1100545830018745</option>
+                                
+                                    <option value="PI157DH250495586850800">PI157DH250495586850800</option>
+                                
+                                    <option value="IH1100536215642364">IH1100536215642364</option>
+                                
+                                    <option value="PI157DH250495586318405">PI157DH250495586318405</option>
+                                
+                                    <option value="IH1100536873092731">IH1100536873092731</option>
+                                
+                                    <option value="IH1100514245805770">IH1100514245805770</option>
+                                
+                                    <option value="IH1100536871485914">IH1100536871485914</option>
+                                
+                                    <option value="IH1100514247175041">IH1100514247175041</option>
+                                
+                                    <option value="IH1100588889302186">IH1100588889302186</option>
+                                
+                                    <option value="PI157DH250495585836942">PI157DH250495585836942</option>
+                                
+                                    <option value="IH1100545826964065">IH1100545826964065</option>
+                                
+                                    <option value="PI157DH250495586222609">PI157DH250495586222609</option>
+                                
+                                    <option value="IH1100592052734790">IH1100592052734790</option>
+                                
+                                    <option value="IH1100585083255971">IH1100585083255971</option>
+                                
+                                    <option value="IH1100585714488564">IH1100585714488564</option>
+                                
+                                    <option value="PI157CP241040538804773">PI157CP241040538804773</option>
+                                
+                                    <option value="IH1100533179869867">IH1100533179869867</option>
+                                
+                                    <option value="IH1100545826485193">IH1100545826485193</option>
+                                
+                                    <option value="__id__共用手机号__1262460cdc2f9cdb9d40f1aedb5fa092">__id__共用手机号__1262460cdc2f9cdb9d40f1aedb5fa092</option>
+                                
+                                    <option value="__id__共用身份证号__7f514e740fab93c46ccbe9471dacc535">__id__共用身份证号__7f514e740fab93c46ccbe9471dacc535</option>
+                                
+                                    <option value="__id__共用身份证号__4ca307b99b7ab29b9e36cd403de13ebf">__id__共用身份证号__4ca307b99b7ab29b9e36cd403de13ebf</option>
+                                
+                                    <option value="__id__共用代理人ID__e1b5816e166386f14b91af03972a7ad8">__id__共用代理人ID__e1b5816e166386f14b91af03972a7ad8</option>
+                                
+                                    <option value="__id__共用身份证号__1f611f1cffbf451e39d5b0fa66a0ea7c">__id__共用身份证号__1f611f1cffbf451e39d5b0fa66a0ea7c</option>
+                                
+                                    <option value="__id__共用身份证号__18980660f2e21f45a3ff7159fba4e42b">__id__共用身份证号__18980660f2e21f45a3ff7159fba4e42b</option>
+                                
+                                    <option value="__id__共用身份证号__3028b0bc9e5059151f2a4471f530b903">__id__共用身份证号__3028b0bc9e5059151f2a4471f530b903</option>
+                                
+                                    <option value="__id__共用身份证号__fce447181f2e807363ad99f4cee1160d">__id__共用身份证号__fce447181f2e807363ad99f4cee1160d</option>
+                                
+                            </select>
+                        </div>
+                        <div class="col-2 pb-2">
+                            <button type="button" class="btn btn-primary btn-block" onclick="neighbourhoodHighlight({nodes: []});">Reset Selection</button>
+                        </div>
+                    </div>
+                </div>
+            
+            
+              <div id="filter-menu" class="card-header">
+                <div class="row no-gutters">
+                  <div class="col-3 pb-2">
+                    <select
+                            class="form-select"
+                            aria-label="Default select example"
+                            onchange="updateFilter(value, 'item')"
+                            id="select-item"
+                        >
+                        <option value="">Select a network item</option>
+                        <option value="edge">edge</option>
+                        <option value="node">node</option>
+                    </select>
+                  </div>
+                  <div class="col-3 pb-2">
+                    <select
+                            class="form-select"
+                            aria-label="Default select example"
+                            onchange="updateFilter(value, 'property')"
+                            id="select-property"
+                        >
+                        <option value="">Select a property...</option>
+                    </select>
+                  </div>
+                  <div class="col-3 pb-2">
+                    <select
+                            class="form-select"
+                            aria-label="Default select example"
+                            id="select-value"
+                        >
+                        <option value="">Select value(s)...</option>
+                    </select>
+                  </div>
+                  <div class="col-1 pb-2">
+                    <button type="button" class="btn btn-primary btn-block" onclick="highlightFilter(filter);">Filter</button>
+                  </div>
+                  <div class="col-2 pb-2">
+                    <button type="button" class="btn btn-primary btn-block" onclick="clearFilter(true)">Reset Selection</button>
+                  </div>
+                </div>
+              </div>
+            
+            <div id="mynetwork" class="card-body"></div>
+        </div>
+
+        
+        
+            <div id="config"></div>
+        
+
+        <script type="text/javascript">
+
+              // initialize global variables.
+              var edges;
+              var nodes;
+              var allNodes;
+              var allEdges;
+              var nodeColors;
+              var originalNodes;
+              var network;
+              var container;
+              var options, data;
+              var filter = {
+                  item : '',
+                  property : '',
+                  value : []
+              };
+
+              
+                  new TomSelect("#select-node",{
+                      create: false,
+                      sortField: {
+                          field: "text",
+                          direction: "asc"
+                      }
+                  });
+              
+
+              
+                  // explicitly using onItemAdd and this function as we need to save multiple values
+                  let updateValueFilter = function() {
+                      return function () {
+                      filter['value'].push(arguments[0])
+                      }
+                  }
+
+                  let valueControl = new TomSelect("#select-value",{
+                      maxItems: null,
+                      valueField: 'id',
+                      labelField: 'title',
+                      searchField: 'title',
+                      create: false,
+                      sortField: {
+                          field: "text",
+                          direction: "asc"
+                      },
+                      onItemAdd: updateValueFilter()
+                  });
+
+                  let addValues = function() {
+                      return function () {
+                          // clear the current value options and add the selected attribute values
+                          // tom-select handles duplicates
+                          let selectedProperty = arguments[0];
+                          valueControl.clear();
+                          valueControl.clearOptions();
+                          filter['value'] = []
+                          if (filter['item'] === 'node') {
+                              for (let each in allNodes) {
+                                  valueControl.addOption({
+                                      id:allNodes[each][selectedProperty],
+                                      title:allNodes[each][selectedProperty]
+                                  })
+                              }
+                          }
+                          else if (filter['item'] === 'edge') {
+                              for (let each in allEdges) {
+                                  valueControl.addOption({
+                                      id:allEdges[each][selectedProperty],
+                                      title:allEdges[each][selectedProperty]
+                                  })
+                              }
+                          }
+                      }
+                  };
+
+                  let propControl = new TomSelect("#select-property",{
+                      valueField: 'id',
+                      labelField: 'title',
+                      searchField: 'title',
+                      create: false,
+                      sortField: {
+                          field: "text",
+                          direction: "asc"
+                      },
+                      onItemAdd: addValues()
+                  });
+
+                  let addProperties = function() {
+                      return function () {
+                          // loops through the selected network item and adds the attributes to dropdown
+                          // tom-select handles duplicates
+                          clearFilter(false)
+                          if (arguments[0] === 'edge') {
+                              for (let each in allEdges) {
+                                  if (allEdges.hasOwnProperty(each)) {
+                                      for (let eachProp in allEdges[each]) {
+                                          if (allEdges[each].hasOwnProperty(eachProp)) {
+                                              propControl.addOption({id: eachProp, title: eachProp})
+                                          }
+                                      }
+                                  }
+                              }
+                          }
+                          else if (arguments[0] === 'node') {
+                              for (let each in allNodes) {
+                                  if (allNodes.hasOwnProperty(each)) {
+                                      for (let eachProp in allNodes[each]) {
+                                          if (allNodes[each].hasOwnProperty(eachProp)
+                                              && (eachProp !== 'hidden' && eachProp !== 'savedLabel'
+                                                  && eachProp !== 'hiddenLabel')) {
+                                              propControl.addOption({id: eachProp, title: eachProp})
+
+                                          }
+                                      }
+                                  }
+                              }
+                          }
+                      }
+                  };
+
+                  let itemControl = new TomSelect("#select-item",{
+                      create: false,
+                      sortField:{
+                          field: "text",
+                          direction: "asc"
+                      },
+                      onItemAdd: addProperties()
+                  });
+
+                  function clearFilter(reset) {
+                      // utility function to clear all the selected filter options
+                      // if reset is set to true, the existing filter will be removed
+                      // else, only the dropdown options are cleared
+                      propControl.clear();
+                      propControl.clearOptions();
+                      valueControl.clear();
+                      valueControl.clearOptions();
+                      filter = {
+                          item : '',
+                          property : '',
+                          value : []
+                      }
+                      if (reset) {
+                          itemControl.clear();
+                          filterHighlight({nodes: []})
+                      }
+                  }
+
+                  function updateFilter(value, key) {
+                      // key could be 'item' or 'property' and value is as selected in dropdown
+                      filter[key] = value
+                  }
+
+              
+
+              // This method is responsible for drawing the graph, returns the drawn network
+              function drawGraph() {
+                  var container = document.getElementById('mynetwork');
+
+                  
+
+                  // parsing and collecting nodes and edges from the python
+                  nodes = new vis.DataSet([{"group": "policy", "id": "IH1100592050330309", "label": "IH1100592050330309", "mo_score": 0.0, "risk_score": 1.0, "shape": "dot", "size": 11, "title": ""}, {"group": "policy", "id": "PI157DH250495586222564", "label": "PI157DH250495586222564", "mo_score": 0.0, "risk_score": 0.331001, "shape": "dot", "size": 11, "title": ""}, {"group": "policy", "id": "IH1100514246268024", "label": "IH1100514246268024", "mo_score": 0.0, "risk_score": 0.479356, "shape": "dot", "size": 10, "title": ""}, {"group": "policy", "id": "IH1100585086190314", "label": "IH1100585086190314", "mo_score": 0.0, "risk_score": 1.0, "shape": "dot", "size": 11, "title": ""}, {"group": "policy", "id": "PI157CG250976086705617", "label": "PI157CG250976086705617", "mo_score": 0.0, "risk_score": 0.13646, "shape": "dot", "size": 9, "title": ""}, {"group": "policy", "id": "PI09134230355698401496", "label": "PI09134230355698401496", "mo_score": 0.0, "risk_score": 0.13646, "shape": "dot", "size": 9, "title": ""}, {"group": "policy", "id": "IH1100585718040182", "label": "IH1100585718040182", "mo_score": 0.0, "risk_score": 0.999999, "shape": "dot", "size": 11, "title": ""}, {"group": "policy", "id": "IH1100585716438801", "label": "IH1100585716438801", "mo_score": 0.0, "risk_score": 0.999999, "shape": "dot", "size": 11, "title": ""}, {"group": "policy", "id": "IH1100570439844733", "label": "IH1100570439844733", "mo_score": 0.0, "risk_score": 0.416375, "shape": "dot", "size": 10, "title": ""}, {"group": "policy", "id": "IH1100592052259208", "label": "IH1100592052259208", "mo_score": 0.0, "risk_score": 1.0, "shape": "dot", "size": 11, "title": ""}, {"group": "policy", "id": "IH1100577318469929", "label": "IH1100577318469929", "mo_score": 0.35, "risk_score": 1.0, "shape": "dot", "size": 10, "title": ""}, {"group": "policy", "id": "PI157CP250991847126790", "label": "PI157CP250991847126790", "mo_score": 0.0, "risk_score": 0.310007, "shape": "dot", "size": 10, "title": ""}, {"group": "policy", "id": "IH1100545830018745", "label": "IH1100545830018745", "mo_score": 0.0, "risk_score": 1.0, "shape": "dot", "size": 11, "title": ""}, {"group": "policy", "id": "PI157DH250495586850800", "label": "PI157DH250495586850800", "mo_score": 0.0, "risk_score": 0.331001, "shape": "dot", "size": 11, "title": ""}, {"group": "policy", "id": "IH1100536215642364", "label": "IH1100536215642364", "mo_score": 0.0, "risk_score": 0.416375, "shape": "dot", "size": 9, "title": ""}, {"group": "policy", "id": "PI157DH250495586318405", "label": "PI157DH250495586318405", "mo_score": 0.0, "risk_score": 0.331001, "shape": "dot", "size": 11, "title": ""}, {"group": "policy", "id": "IH1100536873092731", "label": "IH1100536873092731", "mo_score": 0.35, "risk_score": 1.0, "shape": "dot", "size": 11, "title": ""}, {"group": "policy", "id": "IH1100514245805770", "label": "IH1100514245805770", "mo_score": 0.0, "risk_score": 0.479356, "shape": "dot", "size": 10, "title": ""}, {"group": "policy", "id": "IH1100536871485914", "label": "IH1100536871485914", "mo_score": 0.45, "risk_score": 1.0, "shape": "dot", "size": 11, "title": ""}, {"group": "policy", "id": "IH1100514247175041", "label": "IH1100514247175041", "mo_score": 0.0, "risk_score": 0.479356, "shape": "dot", "size": 10, "title": ""}, {"group": "policy", "id": "IH1100588889302186", "label": "IH1100588889302186", "mo_score": 0.0, "risk_score": 0.416375, "shape": "dot", "size": 9, "title": ""}, {"group": "policy", "id": "PI157DH250495585836942", "label": "PI157DH250495585836942", "mo_score": 0.0, "risk_score": 0.331001, "shape": "dot", "size": 11, "title": ""}, {"group": "policy", "id": "IH1100545826964065", "label": "IH1100545826964065", "mo_score": 0.0, "risk_score": 1.0, "shape": "dot", "size": 11, "title": ""}, {"group": "policy", "id": "PI157DH250495586222609", "label": "PI157DH250495586222609", "mo_score": 0.0, "risk_score": 0.331001, "shape": "dot", "size": 11, "title": ""}, {"group": "policy", "id": "IH1100592052734790", "label": "IH1100592052734790", "mo_score": 0.0, "risk_score": 1.0, "shape": "dot", "size": 11, "title": ""}, {"group": "policy", "id": "IH1100585083255971", "label": "IH1100585083255971", "mo_score": 0.0, "risk_score": 1.0, "shape": "dot", "size": 11, "title": ""}, {"group": "policy", "id": "IH1100585714488564", "label": "IH1100585714488564", "mo_score": 0.0, "risk_score": 0.999999, "shape": "dot", "size": 11, "title": ""}, {"group": "policy", "id": "PI157CP241040538804773", "label": "PI157CP241040538804773", "mo_score": 0.0, "risk_score": 0.310007, "shape": "dot", "size": 10, "title": ""}, {"group": "policy", "id": "IH1100533179869867", "label": "IH1100533179869867", "mo_score": 0.45, "risk_score": 1.0, "shape": "dot", "size": 10, "title": ""}, {"group": "policy", "id": "IH1100545826485193", "label": "IH1100545826485193", "mo_score": 0.0, "risk_score": 1.0, "shape": "dot", "size": 11, "title": ""}, {"group": "id", "id": "__id__\u5171\u7528\u624b\u673a\u53f7__1262460cdc2f9cdb9d40f1aedb5fa092", "label": "\u5171\u7528\u624b\u673a\u53f7:1262460cdc2f...", "mo_score": 0.0, "risk_score": 0.0, "shape": "dot", "size": 30, "title": ""}, {"group": "id", "id": "__id__\u5171\u7528\u8eab\u4efd\u8bc1\u53f7__7f514e740fab93c46ccbe9471dacc535", "label": "\u5171\u7528\u8eab\u4efd\u8bc1\u53f7:7f514e740fab...", "mo_score": 0.0, "risk_score": 0.0, "shape": "dot", "size": 38, "title": ""}, {"group": "id", "id": "__id__\u5171\u7528\u8eab\u4efd\u8bc1\u53f7__4ca307b99b7ab29b9e36cd403de13ebf", "label": "\u5171\u7528\u8eab\u4efd\u8bc1\u53f7:4ca307b99b7a...", "mo_score": 0.0, "risk_score": 0.0, "shape": "dot", "size": 11, "title": ""}, {"group": "id", "id": "__id__\u5171\u7528\u4ee3\u7406\u4ebaID__e1b5816e166386f14b91af03972a7ad8", "label": "\u5171\u7528\u4ee3\u7406\u4ebaID:e1b5816e1663...", "mo_score": 0.0, "risk_score": 0.0, "shape": "dot", "size": 9, "title": ""}, {"group": "id", "id": "__id__\u5171\u7528\u8eab\u4efd\u8bc1\u53f7__1f611f1cffbf451e39d5b0fa66a0ea7c", "label": "\u5171\u7528\u8eab\u4efd\u8bc1\u53f7:1f611f1cffbf...", "mo_score": 0.0, "risk_score": 0.0, "shape": "dot", "size": 13, "title": ""}, {"group": "id", "id": "__id__\u5171\u7528\u8eab\u4efd\u8bc1\u53f7__18980660f2e21f45a3ff7159fba4e42b", "label": "\u5171\u7528\u8eab\u4efd\u8bc1\u53f7:18980660f2e2...", "mo_score": 0.0, "risk_score": 0.0, "shape": "dot", "size": 13, "title": ""}, {"group": "id", "id": "__id__\u5171\u7528\u8eab\u4efd\u8bc1\u53f7__3028b0bc9e5059151f2a4471f530b903", "label": "\u5171\u7528\u8eab\u4efd\u8bc1\u53f7:3028b0bc9e50...", "mo_score": 0.0, "risk_score": 0.0, "shape": "dot", "size": 13, "title": ""}, {"group": "id", "id": "__id__\u5171\u7528\u8eab\u4efd\u8bc1\u53f7__fce447181f2e807363ad99f4cee1160d", "label": "\u5171\u7528\u8eab\u4efd\u8bc1\u53f7:fce447181f2e...", "mo_score": 0.0, "risk_score": 0.0, "shape": "dot", "size": 11, "title": ""}]);
+                  edges = new vis.DataSet([{"color": "#b0b0b0", "from": "IH1100592050330309", "title": "\u5171\u7528\u624b\u673a\u53f7: 1262460cdc2f9cdb9d40f1aedb5fa092", "to": "__id__\u5171\u7528\u624b\u673a\u53f7__1262460cdc2f9cdb9d40f1aedb5fa092", "width": 6.0}, {"color": "#b0b0b0", "from": "IH1100592050330309", "title": "\u5171\u7528\u8eab\u4efd\u8bc1\u53f7: 7f514e740fab93c46ccbe9471dacc535", "to": "__id__\u5171\u7528\u8eab\u4efd\u8bc1\u53f7__7f514e740fab93c46ccbe9471dacc535", "width": 6.0}, {"color": "#b0b0b0", "from": "IH1100592050330309", "title": "\u5171\u7528\u8eab\u4efd\u8bc1\u53f7: 18980660f2e21f45a3ff7159fba4e42b", "to": "__id__\u5171\u7528\u8eab\u4efd\u8bc1\u53f7__18980660f2e21f45a3ff7159fba4e42b", "width": 6.0}, {"color": "#b0b0b0", "from": "PI157DH250495586222564", "title": "\u5171\u7528\u8eab\u4efd\u8bc1\u53f7: 7f514e740fab93c46ccbe9471dacc535", "to": "__id__\u5171\u7528\u8eab\u4efd\u8bc1\u53f7__7f514e740fab93c46ccbe9471dacc535", "width": 6.0}, {"color": "#b0b0b0", "from": "PI157DH250495586222564", "title": "\u5171\u7528\u624b\u673a\u53f7: 1262460cdc2f9cdb9d40f1aedb5fa092", "to": "__id__\u5171\u7528\u624b\u673a\u53f7__1262460cdc2f9cdb9d40f1aedb5fa092", "width": 6.0}, {"color": "#b0b0b0", "from": "PI157DH250495586222564", "title": "\u5171\u7528\u8eab\u4efd\u8bc1\u53f7: 1f611f1cffbf451e39d5b0fa66a0ea7c", "to": "__id__\u5171\u7528\u8eab\u4efd\u8bc1\u53f7__1f611f1cffbf451e39d5b0fa66a0ea7c", "width": 6.0}, {"color": "#b0b0b0", "from": "IH1100514246268024", "title": "\u5171\u7528\u8eab\u4efd\u8bc1\u53f7: 18980660f2e21f45a3ff7159fba4e42b", "to": "__id__\u5171\u7528\u8eab\u4efd\u8bc1\u53f7__18980660f2e21f45a3ff7159fba4e42b", "width": 6.0}, {"color": "#b0b0b0", "from": "IH1100514246268024", "title": "\u5171\u7528\u8eab\u4efd\u8bc1\u53f7: 7f514e740fab93c46ccbe9471dacc535", "to": "__id__\u5171\u7528\u8eab\u4efd\u8bc1\u53f7__7f514e740fab93c46ccbe9471dacc535", "width": 6.0}, {"color": "#b0b0b0", "from": "IH1100585086190314", "title": "\u5171\u7528\u624b\u673a\u53f7: 1262460cdc2f9cdb9d40f1aedb5fa092", "to": "__id__\u5171\u7528\u624b\u673a\u53f7__1262460cdc2f9cdb9d40f1aedb5fa092", "width": 6.0}, {"color": "#b0b0b0", "from": "IH1100585086190314", "title": "\u5171\u7528\u8eab\u4efd\u8bc1\u53f7: 7f514e740fab93c46ccbe9471dacc535", "to": "__id__\u5171\u7528\u8eab\u4efd\u8bc1\u53f7__7f514e740fab93c46ccbe9471dacc535", "width": 6.0}, {"color": "#b0b0b0", "from": "IH1100585086190314", "title": "\u5171\u7528\u8eab\u4efd\u8bc1\u53f7: fce447181f2e807363ad99f4cee1160d", "to": "__id__\u5171\u7528\u8eab\u4efd\u8bc1\u53f7__fce447181f2e807363ad99f4cee1160d", "width": 6.0}, {"color": "#b0b0b0", "from": "PI157CG250976086705617", "title": "\u5171\u7528\u8eab\u4efd\u8bc1\u53f7: 7f514e740fab93c46ccbe9471dacc535", "to": "__id__\u5171\u7528\u8eab\u4efd\u8bc1\u53f7__7f514e740fab93c46ccbe9471dacc535", "width": 6.0}, {"color": "#b0b0b0", "from": "PI09134230355698401496", "title": "\u5171\u7528\u8eab\u4efd\u8bc1\u53f7: 7f514e740fab93c46ccbe9471dacc535", "to": "__id__\u5171\u7528\u8eab\u4efd\u8bc1\u53f7__7f514e740fab93c46ccbe9471dacc535", "width": 6.0}, {"color": "#b0b0b0", "from": "IH1100585718040182", "title": "\u5171\u7528\u624b\u673a\u53f7: 1262460cdc2f9cdb9d40f1aedb5fa092", "to": "__id__\u5171\u7528\u624b\u673a\u53f7__1262460cdc2f9cdb9d40f1aedb5fa092", "width": 6.0}, {"color": "#b0b0b0", "from": "IH1100585718040182", "title": "\u5171\u7528\u8eab\u4efd\u8bc1\u53f7: 7f514e740fab93c46ccbe9471dacc535", "to": "__id__\u5171\u7528\u8eab\u4efd\u8bc1\u53f7__7f514e740fab93c46ccbe9471dacc535", "width": 6.0}, {"color": "#b0b0b0", "from": "IH1100585718040182", "title": "\u5171\u7528\u8eab\u4efd\u8bc1\u53f7: 1f611f1cffbf451e39d5b0fa66a0ea7c", "to": "__id__\u5171\u7528\u8eab\u4efd\u8bc1\u53f7__1f611f1cffbf451e39d5b0fa66a0ea7c", "width": 6.0}, {"color": "#b0b0b0", "from": "IH1100585716438801", "title": "\u5171\u7528\u624b\u673a\u53f7: 1262460cdc2f9cdb9d40f1aedb5fa092", "to": "__id__\u5171\u7528\u624b\u673a\u53f7__1262460cdc2f9cdb9d40f1aedb5fa092", "width": 6.0}, {"color": "#b0b0b0", "from": "IH1100585716438801", "title": "\u5171\u7528\u8eab\u4efd\u8bc1\u53f7: 7f514e740fab93c46ccbe9471dacc535", "to": "__id__\u5171\u7528\u8eab\u4efd\u8bc1\u53f7__7f514e740fab93c46ccbe9471dacc535", "width": 6.0}, {"color": "#b0b0b0", "from": "IH1100585716438801", "title": "\u5171\u7528\u8eab\u4efd\u8bc1\u53f7: 3028b0bc9e5059151f2a4471f530b903", "to": "__id__\u5171\u7528\u8eab\u4efd\u8bc1\u53f7__3028b0bc9e5059151f2a4471f530b903", "width": 6.0}, {"color": "#b0b0b0", "from": "IH1100570439844733", "title": "\u5171\u7528\u4ee3\u7406\u4ebaID: e1b5816e166386f14b91af03972a7ad8", "to": "__id__\u5171\u7528\u4ee3\u7406\u4ebaID__e1b5816e166386f14b91af03972a7ad8", "width": 6.0}, {"color": "#b0b0b0", "from": "IH1100570439844733", "title": "\u5171\u7528\u8eab\u4efd\u8bc1\u53f7: 7f514e740fab93c46ccbe9471dacc535", "to": "__id__\u5171\u7528\u8eab\u4efd\u8bc1\u53f7__7f514e740fab93c46ccbe9471dacc535", "width": 6.0}, {"color": "#b0b0b0", "from": "IH1100592052259208", "title": "\u5171\u7528\u624b\u673a\u53f7: 1262460cdc2f9cdb9d40f1aedb5fa092", "to": "__id__\u5171\u7528\u624b\u673a\u53f7__1262460cdc2f9cdb9d40f1aedb5fa092", "width": 6.0}, {"color": "#b0b0b0", "from": "IH1100592052259208", "title": "\u5171\u7528\u8eab\u4efd\u8bc1\u53f7: 7f514e740fab93c46ccbe9471dacc535", "to": "__id__\u5171\u7528\u8eab\u4efd\u8bc1\u53f7__7f514e740fab93c46ccbe9471dacc535", "width": 6.0}, {"color": "#b0b0b0", "from": "IH1100592052259208", "title": "\u5171\u7528\u8eab\u4efd\u8bc1\u53f7: 1f611f1cffbf451e39d5b0fa66a0ea7c", "to": "__id__\u5171\u7528\u8eab\u4efd\u8bc1\u53f7__1f611f1cffbf451e39d5b0fa66a0ea7c", "width": 6.0}, {"color": "#b0b0b0", "from": "IH1100577318469929", "title": "\u5171\u7528\u624b\u673a\u53f7: 1262460cdc2f9cdb9d40f1aedb5fa092", "to": "__id__\u5171\u7528\u624b\u673a\u53f7__1262460cdc2f9cdb9d40f1aedb5fa092", "width": 6.0}, {"color": "#b0b0b0", "from": "IH1100577318469929", "title": "\u5171\u7528\u8eab\u4efd\u8bc1\u53f7: 7f514e740fab93c46ccbe9471dacc535", "to": "__id__\u5171\u7528\u8eab\u4efd\u8bc1\u53f7__7f514e740fab93c46ccbe9471dacc535", "width": 6.0}, {"color": "#b0b0b0", "from": "PI157CP250991847126790", "title": "\u5171\u7528\u624b\u673a\u53f7: 1262460cdc2f9cdb9d40f1aedb5fa092", "to": "__id__\u5171\u7528\u624b\u673a\u53f7__1262460cdc2f9cdb9d40f1aedb5fa092", "width": 6.0}, {"color": "#b0b0b0", "from": "PI157CP250991847126790", "title": "\u5171\u7528\u8eab\u4efd\u8bc1\u53f7: 7f514e740fab93c46ccbe9471dacc535", "to": "__id__\u5171\u7528\u8eab\u4efd\u8bc1\u53f7__7f514e740fab93c46ccbe9471dacc535", "width": 6.0}, {"color": "#b0b0b0", "from": "IH1100545830018745", "title": "\u5171\u7528\u624b\u673a\u53f7: 1262460cdc2f9cdb9d40f1aedb5fa092", "to": "__id__\u5171\u7528\u624b\u673a\u53f7__1262460cdc2f9cdb9d40f1aedb5fa092", "width": 6.0}, {"color": "#b0b0b0", "from": "IH1100545830018745", "title": "\u5171\u7528\u8eab\u4efd\u8bc1\u53f7: 7f514e740fab93c46ccbe9471dacc535", "to": "__id__\u5171\u7528\u8eab\u4efd\u8bc1\u53f7__7f514e740fab93c46ccbe9471dacc535", "width": 6.0}, {"color": "#b0b0b0", "from": "IH1100545830018745", "title": "\u5171\u7528\u8eab\u4efd\u8bc1\u53f7: 18980660f2e21f45a3ff7159fba4e42b", "to": "__id__\u5171\u7528\u8eab\u4efd\u8bc1\u53f7__18980660f2e21f45a3ff7159fba4e42b", "width": 6.0}, {"color": "#b0b0b0", "from": "PI157DH250495586850800", "title": "\u5171\u7528\u624b\u673a\u53f7: 1262460cdc2f9cdb9d40f1aedb5fa092", "to": "__id__\u5171\u7528\u624b\u673a\u53f7__1262460cdc2f9cdb9d40f1aedb5fa092", "width": 6.0}, {"color": "#b0b0b0", "from": "PI157DH250495586850800", "title": "\u5171\u7528\u8eab\u4efd\u8bc1\u53f7: 3028b0bc9e5059151f2a4471f530b903", "to": "__id__\u5171\u7528\u8eab\u4efd\u8bc1\u53f7__3028b0bc9e5059151f2a4471f530b903", "width": 6.0}, {"color": "#b0b0b0", "from": "PI157DH250495586850800", "title": "\u5171\u7528\u8eab\u4efd\u8bc1\u53f7: 7f514e740fab93c46ccbe9471dacc535", "to": "__id__\u5171\u7528\u8eab\u4efd\u8bc1\u53f7__7f514e740fab93c46ccbe9471dacc535", "width": 6.0}, {"color": "#b0b0b0", "from": "IH1100536215642364", "title": "\u5171\u7528\u8eab\u4efd\u8bc1\u53f7: 7f514e740fab93c46ccbe9471dacc535", "to": "__id__\u5171\u7528\u8eab\u4efd\u8bc1\u53f7__7f514e740fab93c46ccbe9471dacc535", "width": 6.0}, {"color": "#b0b0b0", "from": "PI157DH250495586318405", "title": "\u5171\u7528\u624b\u673a\u53f7: 1262460cdc2f9cdb9d40f1aedb5fa092", "to": "__id__\u5171\u7528\u624b\u673a\u53f7__1262460cdc2f9cdb9d40f1aedb5fa092", "width": 6.0}, {"color": "#b0b0b0", "from": "PI157DH250495586318405", "title": "\u5171\u7528\u8eab\u4efd\u8bc1\u53f7: 7f514e740fab93c46ccbe9471dacc535", "to": "__id__\u5171\u7528\u8eab\u4efd\u8bc1\u53f7__7f514e740fab93c46ccbe9471dacc535", "width": 6.0}, {"color": "#b0b0b0", "from": "PI157DH250495586318405", "title": "\u5171\u7528\u8eab\u4efd\u8bc1\u53f7: 4ca307b99b7ab29b9e36cd403de13ebf", "to": "__id__\u5171\u7528\u8eab\u4efd\u8bc1\u53f7__4ca307b99b7ab29b9e36cd403de13ebf", "width": 6.0}, {"color": "#b0b0b0", "from": "IH1100536873092731", "title": "\u5171\u7528\u624b\u673a\u53f7: 1262460cdc2f9cdb9d40f1aedb5fa092", "to": "__id__\u5171\u7528\u624b\u673a\u53f7__1262460cdc2f9cdb9d40f1aedb5fa092", "width": 6.0}, {"color": "#b0b0b0", "from": "IH1100536873092731", "title": "\u5171\u7528\u8eab\u4efd\u8bc1\u53f7: 4ca307b99b7ab29b9e36cd403de13ebf", "to": "__id__\u5171\u7528\u8eab\u4efd\u8bc1\u53f7__4ca307b99b7ab29b9e36cd403de13ebf", "width": 6.0}, {"color": "#b0b0b0", "from": "IH1100536873092731", "title": "\u5171\u7528\u8eab\u4efd\u8bc1\u53f7: 7f514e740fab93c46ccbe9471dacc535", "to": "__id__\u5171\u7528\u8eab\u4efd\u8bc1\u53f7__7f514e740fab93c46ccbe9471dacc535", "width": 6.0}, {"color": "#b0b0b0", "from": "IH1100514245805770", "title": "\u5171\u7528\u8eab\u4efd\u8bc1\u53f7: 7f514e740fab93c46ccbe9471dacc535", "to": "__id__\u5171\u7528\u8eab\u4efd\u8bc1\u53f7__7f514e740fab93c46ccbe9471dacc535", "width": 6.0}, {"color": "#b0b0b0", "from": "IH1100514245805770", "title": "\u5171\u7528\u8eab\u4efd\u8bc1\u53f7: 3028b0bc9e5059151f2a4471f530b903", "to": "__id__\u5171\u7528\u8eab\u4efd\u8bc1\u53f7__3028b0bc9e5059151f2a4471f530b903", "width": 6.0}, {"color": "#b0b0b0", "from": "IH1100536871485914", "title": "\u5171\u7528\u624b\u673a\u53f7: 1262460cdc2f9cdb9d40f1aedb5fa092", "to": "__id__\u5171\u7528\u624b\u673a\u53f7__1262460cdc2f9cdb9d40f1aedb5fa092", "width": 6.0}, {"color": "#b0b0b0", "from": "IH1100536871485914", "title": "\u5171\u7528\u8eab\u4efd\u8bc1\u53f7: 7f514e740fab93c46ccbe9471dacc535", "to": "__id__\u5171\u7528\u8eab\u4efd\u8bc1\u53f7__7f514e740fab93c46ccbe9471dacc535", "width": 6.0}, {"color": "#b0b0b0", "from": "IH1100536871485914", "title": "\u5171\u7528\u8eab\u4efd\u8bc1\u53f7: fce447181f2e807363ad99f4cee1160d", "to": "__id__\u5171\u7528\u8eab\u4efd\u8bc1\u53f7__fce447181f2e807363ad99f4cee1160d", "width": 6.0}, {"color": "#b0b0b0", "from": "IH1100514247175041", "title": "\u5171\u7528\u8eab\u4efd\u8bc1\u53f7: 7f514e740fab93c46ccbe9471dacc535", "to": "__id__\u5171\u7528\u8eab\u4efd\u8bc1\u53f7__7f514e740fab93c46ccbe9471dacc535", "width": 6.0}, {"color": "#b0b0b0", "from": "IH1100514247175041", "title": "\u5171\u7528\u8eab\u4efd\u8bc1\u53f7: 1f611f1cffbf451e39d5b0fa66a0ea7c", "to": "__id__\u5171\u7528\u8eab\u4efd\u8bc1\u53f7__1f611f1cffbf451e39d5b0fa66a0ea7c", "width": 6.0}, {"color": "#b0b0b0", "from": "IH1100588889302186", "title": "\u5171\u7528\u8eab\u4efd\u8bc1\u53f7: 7f514e740fab93c46ccbe9471dacc535", "to": "__id__\u5171\u7528\u8eab\u4efd\u8bc1\u53f7__7f514e740fab93c46ccbe9471dacc535", "width": 6.0}, {"color": "#b0b0b0", "from": "PI157DH250495585836942", "title": "\u5171\u7528\u8eab\u4efd\u8bc1\u53f7: 7f514e740fab93c46ccbe9471dacc535", "to": "__id__\u5171\u7528\u8eab\u4efd\u8bc1\u53f7__7f514e740fab93c46ccbe9471dacc535", "width": 6.0}, {"color": "#b0b0b0", "from": "PI157DH250495585836942", "title": "\u5171\u7528\u624b\u673a\u53f7: 1262460cdc2f9cdb9d40f1aedb5fa092", "to": "__id__\u5171\u7528\u624b\u673a\u53f7__1262460cdc2f9cdb9d40f1aedb5fa092", "width": 6.0}, {"color": "#b0b0b0", "from": "PI157DH250495585836942", "title": "\u5171\u7528\u8eab\u4efd\u8bc1\u53f7: 18980660f2e21f45a3ff7159fba4e42b", "to": "__id__\u5171\u7528\u8eab\u4efd\u8bc1\u53f7__18980660f2e21f45a3ff7159fba4e42b", "width": 6.0}, {"color": "#b0b0b0", "from": "IH1100545826964065", "title": "\u5171\u7528\u624b\u673a\u53f7: 1262460cdc2f9cdb9d40f1aedb5fa092", "to": "__id__\u5171\u7528\u624b\u673a\u53f7__1262460cdc2f9cdb9d40f1aedb5fa092", "width": 6.0}, {"color": "#b0b0b0", "from": "IH1100545826964065", "title": "\u5171\u7528\u8eab\u4efd\u8bc1\u53f7: 7f514e740fab93c46ccbe9471dacc535", "to": "__id__\u5171\u7528\u8eab\u4efd\u8bc1\u53f7__7f514e740fab93c46ccbe9471dacc535", "width": 6.0}, {"color": "#b0b0b0", "from": "IH1100545826964065", "title": "\u5171\u7528\u8eab\u4efd\u8bc1\u53f7: 1f611f1cffbf451e39d5b0fa66a0ea7c", "to": "__id__\u5171\u7528\u8eab\u4efd\u8bc1\u53f7__1f611f1cffbf451e39d5b0fa66a0ea7c", "width": 6.0}, {"color": "#b0b0b0", "from": "PI157DH250495586222609", "title": "\u5171\u7528\u624b\u673a\u53f7: 1262460cdc2f9cdb9d40f1aedb5fa092", "to": "__id__\u5171\u7528\u624b\u673a\u53f7__1262460cdc2f9cdb9d40f1aedb5fa092", "width": 6.0}, {"color": "#b0b0b0", "from": "PI157DH250495586222609", "title": "\u5171\u7528\u8eab\u4efd\u8bc1\u53f7: fce447181f2e807363ad99f4cee1160d", "to": "__id__\u5171\u7528\u8eab\u4efd\u8bc1\u53f7__fce447181f2e807363ad99f4cee1160d", "width": 6.0}, {"color": "#b0b0b0", "from": "PI157DH250495586222609", "title": "\u5171\u7528\u8eab\u4efd\u8bc1\u53f7: 7f514e740fab93c46ccbe9471dacc535", "to": "__id__\u5171\u7528\u8eab\u4efd\u8bc1\u53f7__7f514e740fab93c46ccbe9471dacc535", "width": 6.0}, {"color": "#b0b0b0", "from": "IH1100592052734790", "title": "\u5171\u7528\u624b\u673a\u53f7: 1262460cdc2f9cdb9d40f1aedb5fa092", "to": "__id__\u5171\u7528\u624b\u673a\u53f7__1262460cdc2f9cdb9d40f1aedb5fa092", "width": 6.0}, {"color": "#b0b0b0", "from": "IH1100592052734790", "title": "\u5171\u7528\u8eab\u4efd\u8bc1\u53f7: 7f514e740fab93c46ccbe9471dacc535", "to": "__id__\u5171\u7528\u8eab\u4efd\u8bc1\u53f7__7f514e740fab93c46ccbe9471dacc535", "width": 6.0}, {"color": "#b0b0b0", "from": "IH1100592052734790", "title": "\u5171\u7528\u8eab\u4efd\u8bc1\u53f7: 3028b0bc9e5059151f2a4471f530b903", "to": "__id__\u5171\u7528\u8eab\u4efd\u8bc1\u53f7__3028b0bc9e5059151f2a4471f530b903", "width": 6.0}, {"color": "#b0b0b0", "from": "IH1100585083255971", "title": "\u5171\u7528\u624b\u673a\u53f7: 1262460cdc2f9cdb9d40f1aedb5fa092", "to": "__id__\u5171\u7528\u624b\u673a\u53f7__1262460cdc2f9cdb9d40f1aedb5fa092", "width": 6.0}, {"color": "#b0b0b0", "from": "IH1100585083255971", "title": "\u5171\u7528\u8eab\u4efd\u8bc1\u53f7: 4ca307b99b7ab29b9e36cd403de13ebf", "to": "__id__\u5171\u7528\u8eab\u4efd\u8bc1\u53f7__4ca307b99b7ab29b9e36cd403de13ebf", "width": 6.0}, {"color": "#b0b0b0", "from": "IH1100585083255971", "title": "\u5171\u7528\u8eab\u4efd\u8bc1\u53f7: 7f514e740fab93c46ccbe9471dacc535", "to": "__id__\u5171\u7528\u8eab\u4efd\u8bc1\u53f7__7f514e740fab93c46ccbe9471dacc535", "width": 6.0}, {"color": "#b0b0b0", "from": "IH1100585714488564", "title": "\u5171\u7528\u8eab\u4efd\u8bc1\u53f7: 7f514e740fab93c46ccbe9471dacc535", "to": "__id__\u5171\u7528\u8eab\u4efd\u8bc1\u53f7__7f514e740fab93c46ccbe9471dacc535", "width": 6.0}, {"color": "#b0b0b0", "from": "IH1100585714488564", "title": "\u5171\u7528\u624b\u673a\u53f7: 1262460cdc2f9cdb9d40f1aedb5fa092", "to": "__id__\u5171\u7528\u624b\u673a\u53f7__1262460cdc2f9cdb9d40f1aedb5fa092", "width": 6.0}, {"color": "#b0b0b0", "from": "IH1100585714488564", "title": "\u5171\u7528\u8eab\u4efd\u8bc1\u53f7: 18980660f2e21f45a3ff7159fba4e42b", "to": "__id__\u5171\u7528\u8eab\u4efd\u8bc1\u53f7__18980660f2e21f45a3ff7159fba4e42b", "width": 6.0}, {"color": "#b0b0b0", "from": "PI157CP241040538804773", "title": "\u5171\u7528\u8eab\u4efd\u8bc1\u53f7: 7f514e740fab93c46ccbe9471dacc535", "to": "__id__\u5171\u7528\u8eab\u4efd\u8bc1\u53f7__7f514e740fab93c46ccbe9471dacc535", "width": 6.0}, {"color": "#b0b0b0", "from": "PI157CP241040538804773", "title": "\u5171\u7528\u624b\u673a\u53f7: 1262460cdc2f9cdb9d40f1aedb5fa092", "to": "__id__\u5171\u7528\u624b\u673a\u53f7__1262460cdc2f9cdb9d40f1aedb5fa092", "width": 6.0}, {"color": "#b0b0b0", "from": "IH1100533179869867", "title": "\u5171\u7528\u624b\u673a\u53f7: 1262460cdc2f9cdb9d40f1aedb5fa092", "to": "__id__\u5171\u7528\u624b\u673a\u53f7__1262460cdc2f9cdb9d40f1aedb5fa092", "width": 6.0}, {"color": "#b0b0b0", "from": "IH1100533179869867", "title": "\u5171\u7528\u8eab\u4efd\u8bc1\u53f7: 7f514e740fab93c46ccbe9471dacc535", "to": "__id__\u5171\u7528\u8eab\u4efd\u8bc1\u53f7__7f514e740fab93c46ccbe9471dacc535", "width": 6.0}, {"color": "#b0b0b0", "from": "IH1100545826485193", "title": "\u5171\u7528\u624b\u673a\u53f7: 1262460cdc2f9cdb9d40f1aedb5fa092", "to": "__id__\u5171\u7528\u624b\u673a\u53f7__1262460cdc2f9cdb9d40f1aedb5fa092", "width": 6.0}, {"color": "#b0b0b0", "from": "IH1100545826485193", "title": "\u5171\u7528\u8eab\u4efd\u8bc1\u53f7: 7f514e740fab93c46ccbe9471dacc535", "to": "__id__\u5171\u7528\u8eab\u4efd\u8bc1\u53f7__7f514e740fab93c46ccbe9471dacc535", "width": 6.0}, {"color": "#b0b0b0", "from": "IH1100545826485193", "title": "\u5171\u7528\u8eab\u4efd\u8bc1\u53f7: 3028b0bc9e5059151f2a4471f530b903", "to": "__id__\u5171\u7528\u8eab\u4efd\u8bc1\u53f7__3028b0bc9e5059151f2a4471f530b903", "width": 6.0}]);
+
+                  nodeColors = {};
+                  allNodes = nodes.get({ returnType: "Object" });
+                  for (nodeId in allNodes) {
+                    nodeColors[nodeId] = allNodes[nodeId].color;
+                  }
+                  allEdges = edges.get({ returnType: "Object" });
+                  // adding nodes and edges to the graph
+                  data = {nodes: nodes, edges: edges};
+
+                  var options = {"edges": {"color": {"inherit": false}, "smooth": false}, "interaction": {"hover": true, "navigationButtons": true, "multiselect": true}, "physics": {"enabled": true, "forceAtlas2Based": {"gravitationalConstant": -50, "springLength": 120, "springConstant": 0.08}, "maxVelocity": 50, "minVelocity": 0.1, "solver": "forceAtlas2Based"}, "configure": {"enabled": true}};
+
+                  
+
+
+                  
+                  // if this network requires displaying the configure window,
+                  // put it in its div
+                  if (!options.configure) {
+                      options.configure = {};
+                  }
+                  options.configure["container"] = document.getElementById("config");
+                  
+
+                  network = new vis.Network(container, data, options);
+
+                  
+
+                  
+                    network.on("selectNode", neighbourhoodHighlight);
+                  
+
+                  
+
+
+                  
+
+                  return network;
+
+              }
+              drawGraph();
+        </script>
+    
+<!-- 颜色维度切换器 -->
+<div id="subgraph-color-switcher" style="position:absolute; top:12px; left:12px; z-index:9999; background:rgba(255,255,255,0.95); border:1px solid #ccc; border-radius:6px; padding:8px 10px; font-family:Arial; font-size:12px;">
+    <label style="margin-right:6px;">颜色维度</label>
+    <select id="subgraph-color-mode">
+        <option value="risk">风险分</option>
+        <option value="mo">手法相似分</option>
+    </select>
+</div>
+
+<!-- 社群画像卡片 -->
+<div style="position:absolute; bottom:12px; right:12px; z-index:9998; background:rgba(255,255,255,0.94); padding:10px; border:1px solid #ccc; border-radius:6px; font-family:Arial; font-size:12px; max-width:320px; box-shadow:0 2px 6px rgba(0,0,0,0.12);">
+    <h4 style="margin:0 0 6px 0;font-size:13px;">Top1 风险子社群 comm_23 | 集体画像</h4>
+    <p style="margin:3px 0;">保单数: 30 / 赔案数: 9</p>
+    <p style="margin:3px 0;">平均MO相似分: 0.356</p>
+    <p style="margin:3px 0; background:#fff3cd; padding:2px 4px; border-radius:3px; font-weight:600;">平均住院天数 🔍: 20.4</p>
+    <p style="margin:3px 0;">平均赔付金额: 4622.81</p>
+    <p style="margin:3px 0;">黑名单案件数: 0</p>
+    <p style="margin:3px 0; background:#fff3cd; padding:2px 4px; border-radius:3px; font-weight:600;"><b>高频医院 🔍</b>: 河南中医药大学第一附属医院(6)；河南省胸科医院(1)；郑州市第一人民医院(1)</p>
+    <p style="margin:3px 0; background:#fff3cd; padding:2px 4px; border-radius:3px; font-weight:600;"><b>高频疾病 🔍</b>: 未特指(7)；慢性胃炎(6)；腰部脊柱扭伤和劳损(1)</p>
+    <p style="margin:3px 0; background:#fff3cd; padding:2px 4px; border-radius:3px; font-weight:600;"><b>就诊类型分布 🔍</b>: 住院医疗(8)；意外医疗(1)</p>
+    <p style="margin:6px 0 0 0; font-size:11px; color:#856404; background:#fff3cd; padding:3px 5px; border-radius:3px;">🔍 种子案件特征: 住院天数=9天（≥5天阈值）；疾病: 颈椎间盘疾患；就诊类型: 住院</p>
+</div>
+
+<!-- 自定义富文本 tooltip 容器（绕过 vis.js 纯文本渲染限制） -->
+<div id="custom-node-tooltip"
+     style="position:fixed; z-index:99999; pointer-events:none; display:none;
+            max-width:380px; border-radius:4px; overflow:hidden;
+            box-shadow:0 4px 20px rgba(0,0,0,0.22);
+            font-family:Arial,sans-serif; font-size:12px;
+            background:#fff;">
+</div>
+
+<script>
+(function() {
+    function placeSwitcher() {
+        var sw = document.getElementById('subgraph-color-switcher');
+        if (!sw) return;
+        try {
+            var candidates = Array.prototype.slice.call(document.querySelectorAll('body > div'));
+            var ctrl = null;
+            for (var i = 0; i < candidates.length; i++) {
+                var el = candidates[i];
+                var r = el.getBoundingClientRect();
+                if (r.left <= 80 && r.top <= 80 && (el.querySelector('button') || el.querySelector('select') || el.querySelector('svg'))) {
+                    ctrl = el; break;
+                }
+            }
+            if (ctrl) {
+                var r = ctrl.getBoundingClientRect();
+                sw.style.left = (r.left) + 'px';
+                sw.style.top = (r.bottom + 6) + 'px';
+            } else {
+                sw.style.left = '12px'; sw.style.top = '60px';
+            }
+        } catch (e) {}
+    }
+    window.addEventListener('resize', function() { setTimeout(placeSwitcher, 50); });
+
+    /* ── 1. 颜色维度切换 ──────────────────────────────────────── */
+    var modeEl = document.getElementById('subgraph-color-mode');
+    if (modeEl && typeof nodes !== 'undefined') {
+        function colorScale(v, min, max) {
+            if (isNaN(v)) return '#4e79a7';
+            var ratio = (max <= min) ? 1 : (v - min) / (max - min);
+            ratio = Math.max(0, Math.min(1, ratio));
+            var r = Math.round(219 + (204 - 219) * ratio);
+            var g = Math.round(233 + (0 - 233) * ratio);
+            var b = Math.round(246 + (0 - 246) * ratio);
+            return '#' + [r,g,b].map(function(x){return x.toString(16).padStart(2,'0');}).join('');
+        }
+        function applyColorMode(mode) {
+            var all = nodes.get();
+            var vals = [];
+            for (var i = 0; i < all.length; i++) {
+                if (all[i].group !== 'policy') continue;
+                var v = mode === 'mo' ? Number(all[i].mo_score) : Number(all[i].risk_score);
+                if (!isNaN(v)) vals.push(v);
+            }
+            var min = vals.length ? Math.min.apply(null, vals) : 0;
+            var max = vals.length ? Math.max.apply(null, vals) : 1;
+            var updates = [];
+            for (var j = 0; j < all.length; j++) {
+                if (all[j].group !== 'policy') continue;
+                var val = mode === 'mo' ? Number(all[j].mo_score) : Number(all[j].risk_score);
+                var c = colorScale(val, min, max);
+                updates.push({id: all[j].id, color: c});
+                if (typeof nodeColors !== 'undefined') nodeColors[all[j].id] = c;
+            }
+            if (updates.length) nodes.update(updates);
+        }
+        modeEl.addEventListener('change', function() { applyColorMode(this.value); });
+        // 在 DOM 就绪并在 pyvis 创建控制面板后，尝试把开关放到控制面板下方
+        setTimeout(placeSwitcher, 300);
+    }
+
+    /* ── 2. 自定义富文本 tooltip ─────────────────────────────── */
+    var TOOLTIPS = {"IH1100592050330309": "<div style=\"font-family:Arial,sans-serif; font-size:12px; max-width:340px;\"><div style=\"background:#2c3e50; color:#fff; padding:5px 10px; border-radius:4px 4px 0 0; font-weight:600; font-size:13px;\">  保单: IH1100592050330309</div><div style=\"background:#f0f4f8; padding:4px 10px; border-bottom:1px solid #dee2e6; font-size:11px; color:#444;\">  传播层级: <b>0</b>  &nbsp;·&nbsp; 风险分: <b>1.0000</b>  &nbsp;·&nbsp; 连接度: <b>3</b></div><div style=\"padding:8px 10px; font-size:12px; color:#888;\">未找到关联赔案信息</div></div>", "PI157DH250495586222564": "<div style=\"font-family:Arial,sans-serif; font-size:12px; max-width:340px;\"><div style=\"background:#2c3e50; color:#fff; padding:5px 10px; border-radius:4px 4px 0 0; font-weight:600; font-size:13px;\">  保单: PI157DH2504955862225…</div><div style=\"background:#f0f4f8; padding:4px 10px; border-bottom:1px solid #dee2e6; font-size:11px; color:#444;\">  传播层级: <b>1</b>  &nbsp;·&nbsp; 风险分: <b>0.3310</b>  &nbsp;·&nbsp; 连接度: <b>3</b></div><div style=\"padding:8px 10px; font-size:12px; color:#888;\">未找到关联赔案信息</div></div>", "IH1100514246268024": "<div style=\"font-family:Arial,sans-serif; font-size:12px; max-width:340px;\"><div style=\"background:#2c3e50; color:#fff; padding:5px 10px; border-radius:4px 4px 0 0; font-weight:600; font-size:13px;\">  保单: IH1100514246268024</div><div style=\"background:#f0f4f8; padding:4px 10px; border-bottom:1px solid #dee2e6; font-size:11px; color:#444;\">  传播层级: <b>1</b>  &nbsp;·&nbsp; 风险分: <b>0.4794</b>  &nbsp;·&nbsp; 连接度: <b>2</b></div><div style=\"padding:8px 10px; font-size:12px; color:#888;\">未找到关联赔案信息</div></div>", "IH1100585086190314": "<div style=\"font-family:Arial,sans-serif; font-size:12px; max-width:340px;\"><div style=\"background:#2c3e50; color:#fff; padding:5px 10px; border-radius:4px 4px 0 0; font-weight:600; font-size:13px;\">  保单: IH1100585086190314</div><div style=\"background:#f0f4f8; padding:4px 10px; border-bottom:1px solid #dee2e6; font-size:11px; color:#444;\">  传播层级: <b>0</b>  &nbsp;·&nbsp; 风险分: <b>1.0000</b>  &nbsp;·&nbsp; 连接度: <b>3</b></div><div style=\"padding:8px 10px; font-size:12px; color:#888;\">未找到关联赔案信息</div></div>", "PI157CG250976086705617": "<div style=\"font-family:Arial,sans-serif; font-size:12px; max-width:340px;\"><div style=\"background:#2c3e50; color:#fff; padding:5px 10px; border-radius:4px 4px 0 0; font-weight:600; font-size:13px;\">  保单: PI157CG2509760867056…</div><div style=\"background:#f0f4f8; padding:4px 10px; border-bottom:1px solid #dee2e6; font-size:11px; color:#444;\">  传播层级: <b>1</b>  &nbsp;·&nbsp; 风险分: <b>0.1365</b>  &nbsp;·&nbsp; 连接度: <b>1</b></div><div style=\"padding:8px 10px; font-size:12px; color:#888;\">未找到关联赔案信息</div></div>", "PI09134230355698401496": "<div style=\"font-family:Arial,sans-serif; font-size:12px; max-width:340px;\"><div style=\"background:#2c3e50; color:#fff; padding:5px 10px; border-radius:4px 4px 0 0; font-weight:600; font-size:13px;\">  保单: PI091342303556984014…</div><div style=\"background:#f0f4f8; padding:4px 10px; border-bottom:1px solid #dee2e6; font-size:11px; color:#444;\">  传播层级: <b>1</b>  &nbsp;·&nbsp; 风险分: <b>0.1365</b>  &nbsp;·&nbsp; 连接度: <b>1</b></div><div style=\"padding:8px 10px; font-size:12px; color:#888;\">未找到关联赔案信息</div></div>", "IH1100585718040182": "<div style=\"font-family:Arial,sans-serif; font-size:12px; max-width:340px;\"><div style=\"background:#2c3e50; color:#fff; padding:5px 10px; border-radius:4px 4px 0 0; font-weight:600; font-size:13px;\">  保单: IH1100585718040182</div><div style=\"background:#f0f4f8; padding:4px 10px; border-bottom:1px solid #dee2e6; font-size:11px; color:#444;\">  传播层级: <b>1</b>  &nbsp;·&nbsp; 风险分: <b>1.0000</b>  &nbsp;·&nbsp; 连接度: <b>3</b></div><div style=\"padding:8px 10px; font-size:12px; color:#888;\">未找到关联赔案信息</div></div>", "IH1100585716438801": "<div style=\"font-family:Arial,sans-serif; font-size:12px; max-width:340px;\"><div style=\"background:#2c3e50; color:#fff; padding:5px 10px; border-radius:4px 4px 0 0; font-weight:600; font-size:13px;\">  保单: IH1100585716438801</div><div style=\"background:#f0f4f8; padding:4px 10px; border-bottom:1px solid #dee2e6; font-size:11px; color:#444;\">  传播层级: <b>1</b>  &nbsp;·&nbsp; 风险分: <b>1.0000</b>  &nbsp;·&nbsp; 连接度: <b>3</b></div><div style=\"padding:8px 10px; font-size:12px; color:#888;\">未找到关联赔案信息</div></div>", "IH1100570439844733": "<div style=\"font-family:Arial,sans-serif; font-size:12px; max-width:340px;\"><div style=\"background:#2c3e50; color:#fff; padding:5px 10px; border-radius:4px 4px 0 0; font-weight:600; font-size:13px;\">  保单: IH1100570439844733</div><div style=\"background:#f0f4f8; padding:4px 10px; border-bottom:1px solid #dee2e6; font-size:11px; color:#444;\">  传播层级: <b>1</b>  &nbsp;·&nbsp; 风险分: <b>0.4164</b>  &nbsp;·&nbsp; 连接度: <b>2</b></div><div style=\"padding:8px 10px; font-size:12px; color:#888;\">未找到关联赔案信息</div></div>", "IH1100592052259208": "<div style=\"font-family:Arial,sans-serif; font-size:12px; max-width:340px;\"><div style=\"background:#2c3e50; color:#fff; padding:5px 10px; border-radius:4px 4px 0 0; font-weight:600; font-size:13px;\">  保单: IH1100592052259208</div><div style=\"background:#f0f4f8; padding:4px 10px; border-bottom:1px solid #dee2e6; font-size:11px; color:#444;\">  传播层级: <b>0</b>  &nbsp;·&nbsp; 风险分: <b>1.0000</b>  &nbsp;·&nbsp; 连接度: <b>3</b></div><div style=\"padding:8px 10px; font-size:12px; color:#888;\">未找到关联赔案信息</div></div>", "IH1100577318469929": "<div style=\"font-family:Arial,sans-serif; font-size:12px; max-width:340px;\"><div style=\"background:#2c3e50; color:#fff; padding:5px 10px; border-radius:4px 4px 0 0; font-weight:600; font-size:13px;\">  保单: IH1100577318469929</div><div style=\"background:#f0f4f8; padding:4px 10px; border-bottom:1px solid #dee2e6; font-size:11px; color:#444;\">  传播层级: <b>0</b>  &nbsp;·&nbsp; 风险分: <b>1.0000</b>  &nbsp;·&nbsp; 连接度: <b>2</b></div><div style=\"padding:5px 10px 2px 10px; font-size:11px; font-weight:600; color:#555;\">关联赔案（Top 1）</div><div style=\"margin:4px 8px 4px 8px; padding:6px 8px; background:#ffffff; border:1px solid #e0e0e0; border-left:4px solid #4e79a7; border-radius:0 4px 4px 0;\"><table style=\"border-collapse:collapse; width:100%;\"><tr><td style=\"padding:2px 6px 2px 0; color:#666; white-space:nowrap; vertical-align:top; font-size:11px;\">案件号</td>    <td style=\"padding:2px 0; vertical-align:top; font-size:12px;\">CL0300004939580318</td></tr><tr><td style=\"padding:2px 6px 2px 0; color:#666; white-space:nowrap; vertical-align:top; font-size:11px;\">报案日期</td>    <td style=\"padding:2px 0; vertical-align:top; font-size:12px;\">2026-02-06</td></tr><tr><td style=\"padding:2px 6px 2px 0; color:#666; white-space:nowrap; vertical-align:top; font-size:11px;\">就诊类型</td>    <td style=\"padding:2px 0; vertical-align:top; font-size:12px; background:#fff3cd; font-weight:600; padding:2px 4px; border-radius:2px;\">住院医疗</td></tr><tr><td style=\"padding:2px 6px 2px 0; color:#666; white-space:nowrap; vertical-align:top; font-size:11px;\">住院天数</td>    <td style=\"padding:2px 0; vertical-align:top; font-size:12px; background:#fff3cd; font-weight:600; padding:2px 4px; border-radius:2px;\">12 天</td></tr><tr><td style=\"padding:2px 6px 2px 0; color:#666; white-space:nowrap; vertical-align:top; font-size:11px;\">赔付金额</td>    <td style=\"padding:2px 0; vertical-align:top; font-size:12px;\">2,425.59</td></tr><tr><td style=\"padding:2px 6px 2px 0; color:#666; white-space:nowrap; vertical-align:top; font-size:11px;\">疾病</td>    <td style=\"padding:2px 0; vertical-align:top; font-size:12px; background:#fff3cd; font-weight:600; padding:2px 4px; border-radius:2px;\">腰部脊柱扭伤和劳损</td></tr><tr><td style=\"padding:2px 6px 2px 0; color:#666; white-space:nowrap; vertical-align:top; font-size:11px;\">医院</td>    <td style=\"padding:2px 0; vertical-align:top; font-size:12px; background:#fff3cd; font-weight:600; padding:2px 4px; border-radius:2px;\">河南省胸科医院</td></tr><tr><td style=\"padding:2px 6px 2px 0; color:#666; white-space:nowrap; vertical-align:top; font-size:11px;\">MO 相似分</td>    <td style=\"padding:2px 0; vertical-align:top; font-size:12px;\">0.350<div style=\"display:inline-block; width:21px; height:6px; background:#4e79a7; border-radius:3px; vertical-align:middle; margin-left:4px;\"></div></td></tr></table></div></div>", "PI157CP250991847126790": "<div style=\"font-family:Arial,sans-serif; font-size:12px; max-width:340px;\"><div style=\"background:#2c3e50; color:#fff; padding:5px 10px; border-radius:4px 4px 0 0; font-weight:600; font-size:13px;\">  保单: PI157CP2509918471267…</div><div style=\"background:#f0f4f8; padding:4px 10px; border-bottom:1px solid #dee2e6; font-size:11px; color:#444;\">  传播层级: <b>1</b>  &nbsp;·&nbsp; 风险分: <b>0.3100</b>  &nbsp;·&nbsp; 连接度: <b>2</b></div><div style=\"padding:8px 10px; font-size:12px; color:#888;\">未找到关联赔案信息</div></div>", "IH1100545830018745": "<div style=\"font-family:Arial,sans-serif; font-size:12px; max-width:340px;\"><div style=\"background:#2c3e50; color:#fff; padding:5px 10px; border-radius:4px 4px 0 0; font-weight:600; font-size:13px;\">  保单: IH1100545830018745</div><div style=\"background:#f0f4f8; padding:4px 10px; border-bottom:1px solid #dee2e6; font-size:11px; color:#444;\">  传播层级: <b>0</b>  &nbsp;·&nbsp; 风险分: <b>1.0000</b>  &nbsp;·&nbsp; 连接度: <b>3</b></div><div style=\"padding:8px 10px; font-size:12px; color:#888;\">未找到关联赔案信息</div></div>", "PI157DH250495586850800": "<div style=\"font-family:Arial,sans-serif; font-size:12px; max-width:340px;\"><div style=\"background:#2c3e50; color:#fff; padding:5px 10px; border-radius:4px 4px 0 0; font-weight:600; font-size:13px;\">  保单: PI157DH2504955868508…</div><div style=\"background:#f0f4f8; padding:4px 10px; border-bottom:1px solid #dee2e6; font-size:11px; color:#444;\">  传播层级: <b>1</b>  &nbsp;·&nbsp; 风险分: <b>0.3310</b>  &nbsp;·&nbsp; 连接度: <b>3</b></div><div style=\"padding:8px 10px; font-size:12px; color:#888;\">未找到关联赔案信息</div></div>", "IH1100536215642364": "<div style=\"font-family:Arial,sans-serif; font-size:12px; max-width:340px;\"><div style=\"background:#2c3e50; color:#fff; padding:5px 10px; border-radius:4px 4px 0 0; font-weight:600; font-size:13px;\">  保单: IH1100536215642364</div><div style=\"background:#f0f4f8; padding:4px 10px; border-bottom:1px solid #dee2e6; font-size:11px; color:#444;\">  传播层级: <b>1</b>  &nbsp;·&nbsp; 风险分: <b>0.4164</b>  &nbsp;·&nbsp; 连接度: <b>1</b></div><div style=\"padding:8px 10px; font-size:12px; color:#888;\">未找到关联赔案信息</div></div>", "PI157DH250495586318405": "<div style=\"font-family:Arial,sans-serif; font-size:12px; max-width:340px;\"><div style=\"background:#2c3e50; color:#fff; padding:5px 10px; border-radius:4px 4px 0 0; font-weight:600; font-size:13px;\">  保单: PI157DH2504955863184…</div><div style=\"background:#f0f4f8; padding:4px 10px; border-bottom:1px solid #dee2e6; font-size:11px; color:#444;\">  传播层级: <b>1</b>  &nbsp;·&nbsp; 风险分: <b>0.3310</b>  &nbsp;·&nbsp; 连接度: <b>3</b></div><div style=\"padding:8px 10px; font-size:12px; color:#888;\">未找到关联赔案信息</div></div>", "IH1100536873092731": "<div style=\"font-family:Arial,sans-serif; font-size:12px; max-width:340px;\"><div style=\"background:#2c3e50; color:#fff; padding:5px 10px; border-radius:4px 4px 0 0; font-weight:600; font-size:13px;\">  保单: IH1100536873092731</div><div style=\"background:#f0f4f8; padding:4px 10px; border-bottom:1px solid #dee2e6; font-size:11px; color:#444;\">  传播层级: <b>0</b>  &nbsp;·&nbsp; 风险分: <b>1.0000</b>  &nbsp;·&nbsp; 连接度: <b>3</b></div><div style=\"padding:5px 10px 2px 10px; font-size:11px; font-weight:600; color:#555;\">关联赔案（Top 2）</div><div style=\"margin:4px 8px 4px 8px; padding:6px 8px; background:#ffffff; border:1px solid #e0e0e0; border-left:4px solid #4e79a7; border-radius:0 4px 4px 0;\"><table style=\"border-collapse:collapse; width:100%;\"><tr><td style=\"padding:2px 6px 2px 0; color:#666; white-space:nowrap; vertical-align:top; font-size:11px;\">案件号</td>    <td style=\"padding:2px 0; vertical-align:top; font-size:12px;\">CL0300002939787395</td></tr><tr><td style=\"padding:2px 6px 2px 0; color:#666; white-space:nowrap; vertical-align:top; font-size:11px;\">报案日期</td>    <td style=\"padding:2px 0; vertical-align:top; font-size:12px;\">2024-11-20</td></tr><tr><td style=\"padding:2px 6px 2px 0; color:#666; white-space:nowrap; vertical-align:top; font-size:11px;\">就诊类型</td>    <td style=\"padding:2px 0; vertical-align:top; font-size:12px; background:#fff3cd; font-weight:600; padding:2px 4px; border-radius:2px;\">住院医疗</td></tr><tr><td style=\"padding:2px 6px 2px 0; color:#666; white-space:nowrap; vertical-align:top; font-size:11px;\">住院天数</td>    <td style=\"padding:2px 0; vertical-align:top; font-size:12px; background:#fff3cd; font-weight:600; padding:2px 4px; border-radius:2px;\">9 天</td></tr><tr><td style=\"padding:2px 6px 2px 0; color:#666; white-space:nowrap; vertical-align:top; font-size:11px;\">赔付金额</td>    <td style=\"padding:2px 0; vertical-align:top; font-size:12px;\">3,924.49</td></tr><tr><td style=\"padding:2px 6px 2px 0; color:#666; white-space:nowrap; vertical-align:top; font-size:11px;\">疾病</td>    <td style=\"padding:2px 0; vertical-align:top; font-size:12px; background:#fff3cd; font-weight:600; padding:2px 4px; border-radius:2px;\">慢性胃炎、未特指</td></tr><tr><td style=\"padding:2px 6px 2px 0; color:#666; white-space:nowrap; vertical-align:top; font-size:11px;\">医院</td>    <td style=\"padding:2px 0; vertical-align:top; font-size:12px; background:#fff3cd; font-weight:600; padding:2px 4px; border-radius:2px;\">河南中医药大学第一附属医院</td></tr><tr><td style=\"padding:2px 6px 2px 0; color:#666; white-space:nowrap; vertical-align:top; font-size:11px;\">MO 相似分</td>    <td style=\"padding:2px 0; vertical-align:top; font-size:12px;\">0.350<div style=\"display:inline-block; width:21px; height:6px; background:#4e79a7; border-radius:3px; vertical-align:middle; margin-left:4px;\"></div></td></tr></table></div><div style=\"margin:4px 8px 4px 8px; padding:6px 8px; background:#fffbf0; border:1px solid #e0e0e0; border-left:4px solid #4e79a7; border-radius:0 4px 4px 0;\"><table style=\"border-collapse:collapse; width:100%;\"><tr><td style=\"padding:2px 6px 2px 0; color:#666; white-space:nowrap; vertical-align:top; font-size:11px;\">案件号</td>    <td style=\"padding:2px 0; vertical-align:top; font-size:12px;\">CL0300003167948530</td></tr><tr><td style=\"padding:2px 6px 2px 0; color:#666; white-space:nowrap; vertical-align:top; font-size:11px;\">报案日期</td>    <td style=\"padding:2px 0; vertical-align:top; font-size:12px;\">2025-03-19</td></tr><tr><td style=\"padding:2px 6px 2px 0; color:#666; white-space:nowrap; vertical-align:top; font-size:11px;\">就诊类型</td>    <td style=\"padding:2px 0; vertical-align:top; font-size:12px; background:#fff3cd; font-weight:600; padding:2px 4px; border-radius:2px;\">住院医疗</td></tr><tr><td style=\"padding:2px 6px 2px 0; color:#666; white-space:nowrap; vertical-align:top; font-size:11px;\">住院天数</td>    <td style=\"padding:2px 0; vertical-align:top; font-size:12px; background:#fff3cd; font-weight:600; padding:2px 4px; border-radius:2px;\">26 天</td></tr><tr><td style=\"padding:2px 6px 2px 0; color:#666; white-space:nowrap; vertical-align:top; font-size:11px;\">赔付金额</td>    <td style=\"padding:2px 0; vertical-align:top; font-size:12px;\">4,350.79</td></tr><tr><td style=\"padding:2px 6px 2px 0; color:#666; white-space:nowrap; vertical-align:top; font-size:11px;\">疾病</td>    <td style=\"padding:2px 0; vertical-align:top; font-size:12px; background:#fff3cd; font-weight:600; padding:2px 4px; border-radius:2px;\">慢性胃炎、未特指</td></tr><tr><td style=\"padding:2px 6px 2px 0; color:#666; white-space:nowrap; vertical-align:top; font-size:11px;\">医院</td>    <td style=\"padding:2px 0; vertical-align:top; font-size:12px; background:#fff3cd; font-weight:600; padding:2px 4px; border-radius:2px;\">河南中医药大学第一附属医院</td></tr><tr><td style=\"padding:2px 6px 2px 0; color:#666; white-space:nowrap; vertical-align:top; font-size:11px;\">MO 相似分</td>    <td style=\"padding:2px 0; vertical-align:top; font-size:12px;\">0.350<div style=\"display:inline-block; width:21px; height:6px; background:#4e79a7; border-radius:3px; vertical-align:middle; margin-left:4px;\"></div></td></tr></table></div></div>", "IH1100514245805770": "<div style=\"font-family:Arial,sans-serif; font-size:12px; max-width:340px;\"><div style=\"background:#2c3e50; color:#fff; padding:5px 10px; border-radius:4px 4px 0 0; font-weight:600; font-size:13px;\">  保单: IH1100514245805770</div><div style=\"background:#f0f4f8; padding:4px 10px; border-bottom:1px solid #dee2e6; font-size:11px; color:#444;\">  传播层级: <b>1</b>  &nbsp;·&nbsp; 风险分: <b>0.4794</b>  &nbsp;·&nbsp; 连接度: <b>2</b></div><div style=\"padding:8px 10px; font-size:12px; color:#888;\">未找到关联赔案信息</div></div>", "IH1100536871485914": "<div style=\"font-family:Arial,sans-serif; font-size:12px; max-width:340px;\"><div style=\"background:#2c3e50; color:#fff; padding:5px 10px; border-radius:4px 4px 0 0; font-weight:600; font-size:13px;\">  保单: IH1100536871485914</div><div style=\"background:#f0f4f8; padding:4px 10px; border-bottom:1px solid #dee2e6; font-size:11px; color:#444;\">  传播层级: <b>0</b>  &nbsp;·&nbsp; 风险分: <b>1.0000</b>  &nbsp;·&nbsp; 连接度: <b>3</b></div><div style=\"padding:5px 10px 2px 10px; font-size:11px; font-weight:600; color:#555;\">关联赔案（Top 2）</div><div style=\"margin:4px 8px 4px 8px; padding:6px 8px; background:#ffffff; border:1px solid #e0e0e0; border-left:4px solid #f28e2b; border-radius:0 4px 4px 0;\"><table style=\"border-collapse:collapse; width:100%;\"><tr><td style=\"padding:2px 6px 2px 0; color:#666; white-space:nowrap; vertical-align:top; font-size:11px;\">案件号</td>    <td style=\"padding:2px 0; vertical-align:top; font-size:12px;\">CL0300002875708158</td></tr><tr><td style=\"padding:2px 6px 2px 0; color:#666; white-space:nowrap; vertical-align:top; font-size:11px;\">报案日期</td>    <td style=\"padding:2px 0; vertical-align:top; font-size:12px;\">2024-10-10</td></tr><tr><td style=\"padding:2px 6px 2px 0; color:#666; white-space:nowrap; vertical-align:top; font-size:11px;\">就诊类型</td>    <td style=\"padding:2px 0; vertical-align:top; font-size:12px; background:#fff3cd; font-weight:600; padding:2px 4px; border-radius:2px;\">住院医疗</td></tr><tr><td style=\"padding:2px 6px 2px 0; color:#666; white-space:nowrap; vertical-align:top; font-size:11px;\">住院天数</td>    <td style=\"padding:2px 0; vertical-align:top; font-size:12px; background:#fff3cd; font-weight:600; padding:2px 4px; border-radius:2px;\">11 天</td></tr><tr><td style=\"padding:2px 6px 2px 0; color:#666; white-space:nowrap; vertical-align:top; font-size:11px;\">赔付金额</td>    <td style=\"padding:2px 0; vertical-align:top; font-size:12px;\">6,605.09</td></tr><tr><td style=\"padding:2px 6px 2px 0; color:#666; white-space:nowrap; vertical-align:top; font-size:11px;\">疾病</td>    <td style=\"padding:2px 0; vertical-align:top; font-size:12px; background:#fff3cd; font-weight:600; padding:2px 4px; border-radius:2px;\">慢性胃炎、未特指</td></tr><tr><td style=\"padding:2px 6px 2px 0; color:#666; white-space:nowrap; vertical-align:top; font-size:11px;\">医院</td>    <td style=\"padding:2px 0; vertical-align:top; font-size:12px; background:#fff3cd; font-weight:600; padding:2px 4px; border-radius:2px;\">河南中医药大学第一附属医院</td></tr><tr><td style=\"padding:2px 6px 2px 0; color:#666; white-space:nowrap; vertical-align:top; font-size:11px;\">MO 相似分</td>    <td style=\"padding:2px 0; vertical-align:top; font-size:12px;\">0.450<div style=\"display:inline-block; width:27px; height:6px; background:#f28e2b; border-radius:3px; vertical-align:middle; margin-left:4px;\"></div></td></tr></table></div><div style=\"margin:4px 8px 4px 8px; padding:6px 8px; background:#fffbf0; border:1px solid #e0e0e0; border-left:4px solid #4e79a7; border-radius:0 4px 4px 0;\"><table style=\"border-collapse:collapse; width:100%;\"><tr><td style=\"padding:2px 6px 2px 0; color:#666; white-space:nowrap; vertical-align:top; font-size:11px;\">案件号</td>    <td style=\"padding:2px 0; vertical-align:top; font-size:12px;\">CL0300003427439501</td></tr><tr><td style=\"padding:2px 6px 2px 0; color:#666; white-space:nowrap; vertical-align:top; font-size:11px;\">报案日期</td>    <td style=\"padding:2px 0; vertical-align:top; font-size:12px;\">2025-05-27</td></tr><tr><td style=\"padding:2px 6px 2px 0; color:#666; white-space:nowrap; vertical-align:top; font-size:11px;\">就诊类型</td>    <td style=\"padding:2px 0; vertical-align:top; font-size:12px; background:#fff3cd; font-weight:600; padding:2px 4px; border-radius:2px;\">住院医疗</td></tr><tr><td style=\"padding:2px 6px 2px 0; color:#666; white-space:nowrap; vertical-align:top; font-size:11px;\">住院天数</td>    <td style=\"padding:2px 0; vertical-align:top; font-size:12px; background:#fff3cd; font-weight:600; padding:2px 4px; border-radius:2px;\">26 天</td></tr><tr><td style=\"padding:2px 6px 2px 0; color:#666; white-space:nowrap; vertical-align:top; font-size:11px;\">赔付金额</td>    <td style=\"padding:2px 0; vertical-align:top; font-size:12px;\">4,161.47</td></tr><tr><td style=\"padding:2px 6px 2px 0; color:#666; white-space:nowrap; vertical-align:top; font-size:11px;\">疾病</td>    <td style=\"padding:2px 0; vertical-align:top; font-size:12px; background:#fff3cd; font-weight:600; padding:2px 4px; border-radius:2px;\">慢性胃炎、未特指</td></tr><tr><td style=\"padding:2px 6px 2px 0; color:#666; white-space:nowrap; vertical-align:top; font-size:11px;\">医院</td>    <td style=\"padding:2px 0; vertical-align:top; font-size:12px; background:#fff3cd; font-weight:600; padding:2px 4px; border-radius:2px;\">河南中医药大学第一附属医院</td></tr><tr><td style=\"padding:2px 6px 2px 0; color:#666; white-space:nowrap; vertical-align:top; font-size:11px;\">MO 相似分</td>    <td style=\"padding:2px 0; vertical-align:top; font-size:12px;\">0.350<div style=\"display:inline-block; width:21px; height:6px; background:#4e79a7; border-radius:3px; vertical-align:middle; margin-left:4px;\"></div></td></tr></table></div></div>", "IH1100514247175041": "<div style=\"font-family:Arial,sans-serif; font-size:12px; max-width:340px;\"><div style=\"background:#2c3e50; color:#fff; padding:5px 10px; border-radius:4px 4px 0 0; font-weight:600; font-size:13px;\">  保单: IH1100514247175041</div><div style=\"background:#f0f4f8; padding:4px 10px; border-bottom:1px solid #dee2e6; font-size:11px; color:#444;\">  传播层级: <b>1</b>  &nbsp;·&nbsp; 风险分: <b>0.4794</b>  &nbsp;·&nbsp; 连接度: <b>2</b></div><div style=\"padding:8px 10px; font-size:12px; color:#888;\">未找到关联赔案信息</div></div>", "IH1100588889302186": "<div style=\"font-family:Arial,sans-serif; font-size:12px; max-width:340px;\"><div style=\"background:#2c3e50; color:#fff; padding:5px 10px; border-radius:4px 4px 0 0; font-weight:600; font-size:13px;\">  保单: IH1100588889302186</div><div style=\"background:#f0f4f8; padding:4px 10px; border-bottom:1px solid #dee2e6; font-size:11px; color:#444;\">  传播层级: <b>1</b>  &nbsp;·&nbsp; 风险分: <b>0.4164</b>  &nbsp;·&nbsp; 连接度: <b>1</b></div><div style=\"padding:8px 10px; font-size:12px; color:#888;\">未找到关联赔案信息</div></div>", "PI157DH250495585836942": "<div style=\"font-family:Arial,sans-serif; font-size:12px; max-width:340px;\"><div style=\"background:#2c3e50; color:#fff; padding:5px 10px; border-radius:4px 4px 0 0; font-weight:600; font-size:13px;\">  保单: PI157DH2504955858369…</div><div style=\"background:#f0f4f8; padding:4px 10px; border-bottom:1px solid #dee2e6; font-size:11px; color:#444;\">  传播层级: <b>1</b>  &nbsp;·&nbsp; 风险分: <b>0.3310</b>  &nbsp;·&nbsp; 连接度: <b>3</b></div><div style=\"padding:8px 10px; font-size:12px; color:#888;\">未找到关联赔案信息</div></div>", "IH1100545826964065": "<div style=\"font-family:Arial,sans-serif; font-size:12px; max-width:340px;\"><div style=\"background:#2c3e50; color:#fff; padding:5px 10px; border-radius:4px 4px 0 0; font-weight:600; font-size:13px;\">  保单: IH1100545826964065</div><div style=\"background:#f0f4f8; padding:4px 10px; border-bottom:1px solid #dee2e6; font-size:11px; color:#444;\">  传播层级: <b>0</b>  &nbsp;·&nbsp; 风险分: <b>1.0000</b>  &nbsp;·&nbsp; 连接度: <b>3</b></div><div style=\"padding:8px 10px; font-size:12px; color:#888;\">未找到关联赔案信息</div></div>", "PI157DH250495586222609": "<div style=\"font-family:Arial,sans-serif; font-size:12px; max-width:340px;\"><div style=\"background:#2c3e50; color:#fff; padding:5px 10px; border-radius:4px 4px 0 0; font-weight:600; font-size:13px;\">  保单: PI157DH2504955862226…</div><div style=\"background:#f0f4f8; padding:4px 10px; border-bottom:1px solid #dee2e6; font-size:11px; color:#444;\">  传播层级: <b>1</b>  &nbsp;·&nbsp; 风险分: <b>0.3310</b>  &nbsp;·&nbsp; 连接度: <b>3</b></div><div style=\"padding:8px 10px; font-size:12px; color:#888;\">未找到关联赔案信息</div></div>", "IH1100592052734790": "<div style=\"font-family:Arial,sans-serif; font-size:12px; max-width:340px;\"><div style=\"background:#2c3e50; color:#fff; padding:5px 10px; border-radius:4px 4px 0 0; font-weight:600; font-size:13px;\">  保单: IH1100592052734790</div><div style=\"background:#f0f4f8; padding:4px 10px; border-bottom:1px solid #dee2e6; font-size:11px; color:#444;\">  传播层级: <b>0</b>  &nbsp;·&nbsp; 风险分: <b>1.0000</b>  &nbsp;·&nbsp; 连接度: <b>3</b></div><div style=\"padding:8px 10px; font-size:12px; color:#888;\">未找到关联赔案信息</div></div>", "IH1100585083255971": "<div style=\"font-family:Arial,sans-serif; font-size:12px; max-width:340px;\"><div style=\"background:#2c3e50; color:#fff; padding:5px 10px; border-radius:4px 4px 0 0; font-weight:600; font-size:13px;\">  保单: IH1100585083255971</div><div style=\"background:#f0f4f8; padding:4px 10px; border-bottom:1px solid #dee2e6; font-size:11px; color:#444;\">  传播层级: <b>0</b>  &nbsp;·&nbsp; 风险分: <b>1.0000</b>  &nbsp;·&nbsp; 连接度: <b>3</b></div><div style=\"padding:8px 10px; font-size:12px; color:#888;\">未找到关联赔案信息</div></div>", "IH1100585714488564": "<div style=\"font-family:Arial,sans-serif; font-size:12px; max-width:340px;\"><div style=\"background:#2c3e50; color:#fff; padding:5px 10px; border-radius:4px 4px 0 0; font-weight:600; font-size:13px;\">  保单: IH1100585714488564</div><div style=\"background:#f0f4f8; padding:4px 10px; border-bottom:1px solid #dee2e6; font-size:11px; color:#444;\">  传播层级: <b>1</b>  &nbsp;·&nbsp; 风险分: <b>1.0000</b>  &nbsp;·&nbsp; 连接度: <b>3</b></div><div style=\"padding:8px 10px; font-size:12px; color:#888;\">未找到关联赔案信息</div></div>", "PI157CP241040538804773": "<div style=\"font-family:Arial,sans-serif; font-size:12px; max-width:340px;\"><div style=\"background:#2c3e50; color:#fff; padding:5px 10px; border-radius:4px 4px 0 0; font-weight:600; font-size:13px;\">  保单: PI157CP2410405388047…</div><div style=\"background:#f0f4f8; padding:4px 10px; border-bottom:1px solid #dee2e6; font-size:11px; color:#444;\">  传播层级: <b>1</b>  &nbsp;·&nbsp; 风险分: <b>0.3100</b>  &nbsp;·&nbsp; 连接度: <b>2</b></div><div style=\"padding:8px 10px; font-size:12px; color:#888;\">未找到关联赔案信息</div></div>", "IH1100533179869867": "<div style=\"font-family:Arial,sans-serif; font-size:12px; max-width:340px;\"><div style=\"background:#2c3e50; color:#fff; padding:5px 10px; border-radius:4px 4px 0 0; font-weight:600; font-size:13px;\">  保单: IH1100533179869867</div><div style=\"background:#f0f4f8; padding:4px 10px; border-bottom:1px solid #dee2e6; font-size:11px; color:#444;\">  传播层级: <b>0</b>  &nbsp;·&nbsp; 风险分: <b>1.0000</b>  &nbsp;·&nbsp; 连接度: <b>2</b></div><div style=\"padding:5px 10px 2px 10px; font-size:11px; font-weight:600; color:#555;\">关联赔案（Top 3）</div><div style=\"margin:4px 8px 4px 8px; padding:6px 8px; background:#ffffff; border:1px solid #e0e0e0; border-left:4px solid #f28e2b; border-radius:0 4px 4px 0;\"><table style=\"border-collapse:collapse; width:100%;\"><tr><td style=\"padding:2px 6px 2px 0; color:#666; white-space:nowrap; vertical-align:top; font-size:11px;\">案件号</td>    <td style=\"padding:2px 0; vertical-align:top; font-size:12px;\">CL0300003096438873</td></tr><tr><td style=\"padding:2px 6px 2px 0; color:#666; white-space:nowrap; vertical-align:top; font-size:11px;\">报案日期</td>    <td style=\"padding:2px 0; vertical-align:top; font-size:12px;\">2025-02-19</td></tr><tr><td style=\"padding:2px 6px 2px 0; color:#666; white-space:nowrap; vertical-align:top; font-size:11px;\">就诊类型</td>    <td style=\"padding:2px 0; vertical-align:top; font-size:12px; background:#fff3cd; font-weight:600; padding:2px 4px; border-radius:2px;\">住院医疗</td></tr><tr><td style=\"padding:2px 6px 2px 0; color:#666; white-space:nowrap; vertical-align:top; font-size:11px;\">住院天数</td>    <td style=\"padding:2px 0; vertical-align:top; font-size:12px; background:#fff3cd; font-weight:600; padding:2px 4px; border-radius:2px;\">34 天</td></tr><tr><td style=\"padding:2px 6px 2px 0; color:#666; white-space:nowrap; vertical-align:top; font-size:11px;\">赔付金额</td>    <td style=\"padding:2px 0; vertical-align:top; font-size:12px;\">9,049.13</td></tr><tr><td style=\"padding:2px 6px 2px 0; color:#666; white-space:nowrap; vertical-align:top; font-size:11px;\">疾病</td>    <td style=\"padding:2px 0; vertical-align:top; font-size:12px; background:#fff3cd; font-weight:600; padding:2px 4px; border-radius:2px;\">慢性胃炎、未特指</td></tr><tr><td style=\"padding:2px 6px 2px 0; color:#666; white-space:nowrap; vertical-align:top; font-size:11px;\">医院</td>    <td style=\"padding:2px 0; vertical-align:top; font-size:12px; background:#fff3cd; font-weight:600; padding:2px 4px; border-radius:2px;\">河南中医药大学第一附属医院</td></tr><tr><td style=\"padding:2px 6px 2px 0; color:#666; white-space:nowrap; vertical-align:top; font-size:11px;\">MO 相似分</td>    <td style=\"padding:2px 0; vertical-align:top; font-size:12px;\">0.450<div style=\"display:inline-block; width:27px; height:6px; background:#f28e2b; border-radius:3px; vertical-align:middle; margin-left:4px;\"></div></td></tr></table></div><div style=\"margin:4px 8px 4px 8px; padding:6px 8px; background:#fffbf0; border:1px solid #e0e0e0; border-left:4px solid #4e79a7; border-radius:0 4px 4px 0;\"><table style=\"border-collapse:collapse; width:100%;\"><tr><td style=\"padding:2px 6px 2px 0; color:#666; white-space:nowrap; vertical-align:top; font-size:11px;\">案件号</td>    <td style=\"padding:2px 0; vertical-align:top; font-size:12px;\">CL0300002944621095</td></tr><tr><td style=\"padding:2px 6px 2px 0; color:#666; white-space:nowrap; vertical-align:top; font-size:11px;\">报案日期</td>    <td style=\"padding:2px 0; vertical-align:top; font-size:12px;\">2024-11-22</td></tr><tr><td style=\"padding:2px 6px 2px 0; color:#666; white-space:nowrap; vertical-align:top; font-size:11px;\">就诊类型</td>    <td style=\"padding:2px 0; vertical-align:top; font-size:12px; background:#fff3cd; font-weight:600; padding:2px 4px; border-radius:2px;\">住院医疗</td></tr><tr><td style=\"padding:2px 6px 2px 0; color:#666; white-space:nowrap; vertical-align:top; font-size:11px;\">住院天数</td>    <td style=\"padding:2px 0; vertical-align:top; font-size:12px; background:#fff3cd; font-weight:600; padding:2px 4px; border-radius:2px;\">23 天</td></tr><tr><td style=\"padding:2px 6px 2px 0; color:#666; white-space:nowrap; vertical-align:top; font-size:11px;\">赔付金额</td>    <td style=\"padding:2px 0; vertical-align:top; font-size:12px;\">1,872.28</td></tr><tr><td style=\"padding:2px 6px 2px 0; color:#666; white-space:nowrap; vertical-align:top; font-size:11px;\">疾病</td>    <td style=\"padding:2px 0; vertical-align:top; font-size:12px; background:#fff3cd; font-weight:600; padding:2px 4px; border-radius:2px;\">心脏心律失常、未特指</td></tr><tr><td style=\"padding:2px 6px 2px 0; color:#666; white-space:nowrap; vertical-align:top; font-size:11px;\">医院</td>    <td style=\"padding:2px 0; vertical-align:top; font-size:12px; background:#fff3cd; font-weight:600; padding:2px 4px; border-radius:2px;\">郑州市第一人民医院</td></tr><tr><td style=\"padding:2px 6px 2px 0; color:#666; white-space:nowrap; vertical-align:top; font-size:11px;\">MO 相似分</td>    <td style=\"padding:2px 0; vertical-align:top; font-size:12px;\">0.350<div style=\"display:inline-block; width:21px; height:6px; background:#4e79a7; border-radius:3px; vertical-align:middle; margin-left:4px;\"></div></td></tr></table></div><div style=\"margin:4px 8px 4px 8px; padding:6px 8px; background:#ffffff; border:1px solid #e0e0e0; border-left:4px solid #4e79a7; border-radius:0 4px 4px 0;\"><table style=\"border-collapse:collapse; width:100%;\"><tr><td style=\"padding:2px 6px 2px 0; color:#666; white-space:nowrap; vertical-align:top; font-size:11px;\">案件号</td>    <td style=\"padding:2px 0; vertical-align:top; font-size:12px;\">CL0300002832846278</td></tr><tr><td style=\"padding:2px 6px 2px 0; color:#666; white-space:nowrap; vertical-align:top; font-size:11px;\">报案日期</td>    <td style=\"padding:2px 0; vertical-align:top; font-size:12px;\">2024-09-11</td></tr><tr><td style=\"padding:2px 6px 2px 0; color:#666; white-space:nowrap; vertical-align:top; font-size:11px;\">就诊类型</td>    <td style=\"padding:2px 0; vertical-align:top; font-size:12px; background:#fff3cd; font-weight:600; padding:2px 4px; border-radius:2px;\">住院医疗</td></tr><tr><td style=\"padding:2px 6px 2px 0; color:#666; white-space:nowrap; vertical-align:top; font-size:11px;\">住院天数</td>    <td style=\"padding:2px 0; vertical-align:top; font-size:12px; background:#fff3cd; font-weight:600; padding:2px 4px; border-radius:2px;\">33 天</td></tr><tr><td style=\"padding:2px 6px 2px 0; color:#666; white-space:nowrap; vertical-align:top; font-size:11px;\">赔付金额</td>    <td style=\"padding:2px 0; vertical-align:top; font-size:12px;\">0.00</td></tr><tr><td style=\"padding:2px 6px 2px 0; color:#666; white-space:nowrap; vertical-align:top; font-size:11px;\">疾病</td>    <td style=\"padding:2px 0; vertical-align:top; font-size:12px; background:#fff3cd; font-weight:600; padding:2px 4px; border-radius:2px;\">慢性胃炎、未特指</td></tr><tr><td style=\"padding:2px 6px 2px 0; color:#666; white-space:nowrap; vertical-align:top; font-size:11px;\">医院</td>    <td style=\"padding:2px 0; vertical-align:top; font-size:12px; background:#fff3cd; font-weight:600; padding:2px 4px; border-radius:2px;\">河南中医药大学第一附属医院</td></tr><tr><td style=\"padding:2px 6px 2px 0; color:#666; white-space:nowrap; vertical-align:top; font-size:11px;\">MO 相似分</td>    <td style=\"padding:2px 0; vertical-align:top; font-size:12px;\">0.350<div style=\"display:inline-block; width:21px; height:6px; background:#4e79a7; border-radius:3px; vertical-align:middle; margin-left:4px;\"></div></td></tr></table></div></div>", "IH1100545826485193": "<div style=\"font-family:Arial,sans-serif; font-size:12px; max-width:340px;\"><div style=\"background:#2c3e50; color:#fff; padding:5px 10px; border-radius:4px 4px 0 0; font-weight:600; font-size:13px;\">  保单: IH1100545826485193</div><div style=\"background:#f0f4f8; padding:4px 10px; border-bottom:1px solid #dee2e6; font-size:11px; color:#444;\">  传播层级: <b>0</b>  &nbsp;·&nbsp; 风险分: <b>1.0000</b>  &nbsp;·&nbsp; 连接度: <b>3</b></div><div style=\"padding:8px 10px; font-size:12px; color:#888;\">未找到关联赔案信息</div></div>", "__id__共用手机号__1262460cdc2f9cdb9d40f1aedb5fa092": "<div style=\"font-family:Arial,sans-serif; font-size:12px; max-width:320px;\"><div style=\"background:#f28e2b; color:#fff; padding:5px 10px; border-radius:4px 4px 0 0; font-weight:600; font-size:13px;\">  共用手机号</div><div style=\"background:#f0f4f8; padding:4px 10px; border-bottom:1px solid #dee2e6; font-size:11px; color:#444;\">  ID值: <b>1262460cdc2f9cdb9d40f1aedb5f…</b>  &nbsp;·&nbsp; 连接保单数: <b>22</b></div><div style=\"padding:5px 10px 2px 10px; font-size:11px; font-weight:600; color:#555;\">直连保单（22 个）</div><div style=\"padding:3px 10px; font-size:12px; border-bottom:1px solid #f0f0f0; font-family:monospace;\">IH1100533179869867</div><div style=\"padding:3px 10px; font-size:12px; border-bottom:1px solid #f0f0f0; font-family:monospace;\">IH1100536871485914</div><div style=\"padding:3px 10px; font-size:12px; border-bottom:1px solid #f0f0f0; font-family:monospace;\">IH1100536873092731</div><div style=\"padding:3px 10px; font-size:12px; border-bottom:1px solid #f0f0f0; font-family:monospace;\">IH1100545826485193</div><div style=\"padding:3px 10px; font-size:12px; border-bottom:1px solid #f0f0f0; font-family:monospace;\">IH1100545826964065</div><div style=\"padding:3px 10px; font-size:12px; border-bottom:1px solid #f0f0f0; font-family:monospace;\">IH1100545830018745</div><div style=\"padding:3px 10px; font-size:12px; border-bottom:1px solid #f0f0f0; font-family:monospace;\">IH1100577318469929</div><div style=\"padding:3px 10px; font-size:12px; border-bottom:1px solid #f0f0f0; font-family:monospace;\">IH1100585083255971</div><div style=\"padding:3px 10px; font-size:12px; border-bottom:1px solid #f0f0f0; font-family:monospace;\">IH1100585086190314</div><div style=\"padding:3px 10px; font-size:12px; border-bottom:1px solid #f0f0f0; font-family:monospace;\">IH1100585714488564</div><div style=\"padding:3px 10px 6px 10px; font-size:11px; color:#888;\">… 另 12 个保单</div></div>", "__id__共用身份证号__7f514e740fab93c46ccbe9471dacc535": "<div style=\"font-family:Arial,sans-serif; font-size:12px; max-width:320px;\"><div style=\"background:#e15759; color:#fff; padding:5px 10px; border-radius:4px 4px 0 0; font-weight:600; font-size:13px;\">  共用身份证号</div><div style=\"background:#f0f4f8; padding:4px 10px; border-bottom:1px solid #dee2e6; font-size:11px; color:#444;\">  ID值: <b>7f514e740fab93c46ccbe9471dac…</b>  &nbsp;·&nbsp; 连接保单数: <b>30</b></div><div style=\"padding:5px 10px 2px 10px; font-size:11px; font-weight:600; color:#555;\">直连保单（30 个）</div><div style=\"padding:3px 10px; font-size:12px; border-bottom:1px solid #f0f0f0; font-family:monospace;\">IH1100514245805770</div><div style=\"padding:3px 10px; font-size:12px; border-bottom:1px solid #f0f0f0; font-family:monospace;\">IH1100514246268024</div><div style=\"padding:3px 10px; font-size:12px; border-bottom:1px solid #f0f0f0; font-family:monospace;\">IH1100514247175041</div><div style=\"padding:3px 10px; font-size:12px; border-bottom:1px solid #f0f0f0; font-family:monospace;\">IH1100533179869867</div><div style=\"padding:3px 10px; font-size:12px; border-bottom:1px solid #f0f0f0; font-family:monospace;\">IH1100536215642364</div><div style=\"padding:3px 10px; font-size:12px; border-bottom:1px solid #f0f0f0; font-family:monospace;\">IH1100536871485914</div><div style=\"padding:3px 10px; font-size:12px; border-bottom:1px solid #f0f0f0; font-family:monospace;\">IH1100536873092731</div><div style=\"padding:3px 10px; font-size:12px; border-bottom:1px solid #f0f0f0; font-family:monospace;\">IH1100545826485193</div><div style=\"padding:3px 10px; font-size:12px; border-bottom:1px solid #f0f0f0; font-family:monospace;\">IH1100545826964065</div><div style=\"padding:3px 10px; font-size:12px; border-bottom:1px solid #f0f0f0; font-family:monospace;\">IH1100545830018745</div><div style=\"padding:3px 10px 6px 10px; font-size:11px; color:#888;\">… 另 20 个保单</div></div>", "__id__共用身份证号__4ca307b99b7ab29b9e36cd403de13ebf": "<div style=\"font-family:Arial,sans-serif; font-size:12px; max-width:320px;\"><div style=\"background:#e15759; color:#fff; padding:5px 10px; border-radius:4px 4px 0 0; font-weight:600; font-size:13px;\">  共用身份证号</div><div style=\"background:#f0f4f8; padding:4px 10px; border-bottom:1px solid #dee2e6; font-size:11px; color:#444;\">  ID值: <b>4ca307b99b7ab29b9e36cd403de1…</b>  &nbsp;·&nbsp; 连接保单数: <b>3</b></div><div style=\"padding:5px 10px 2px 10px; font-size:11px; font-weight:600; color:#555;\">直连保单（3 个）</div><div style=\"padding:3px 10px; font-size:12px; border-bottom:1px solid #f0f0f0; font-family:monospace;\">IH1100536873092731</div><div style=\"padding:3px 10px; font-size:12px; border-bottom:1px solid #f0f0f0; font-family:monospace;\">IH1100585083255971</div><div style=\"padding:3px 10px; font-size:12px; border-bottom:1px solid #f0f0f0; font-family:monospace;\">PI157DH250495586318405</div></div>", "__id__共用代理人ID__e1b5816e166386f14b91af03972a7ad8": "<div style=\"font-family:Arial,sans-serif; font-size:12px; max-width:320px;\"><div style=\"background:#59a14f; color:#fff; padding:5px 10px; border-radius:4px 4px 0 0; font-weight:600; font-size:13px;\">  共用代理人ID</div><div style=\"background:#f0f4f8; padding:4px 10px; border-bottom:1px solid #dee2e6; font-size:11px; color:#444;\">  ID值: <b>e1b5816e166386f14b91af03972a…</b>  &nbsp;·&nbsp; 连接保单数: <b>1</b></div><div style=\"padding:5px 10px 2px 10px; font-size:11px; font-weight:600; color:#555;\">直连保单（1 个）</div><div style=\"padding:3px 10px; font-size:12px; border-bottom:1px solid #f0f0f0; font-family:monospace;\">IH1100570439844733</div></div>", "__id__共用身份证号__1f611f1cffbf451e39d5b0fa66a0ea7c": "<div style=\"font-family:Arial,sans-serif; font-size:12px; max-width:320px;\"><div style=\"background:#e15759; color:#fff; padding:5px 10px; border-radius:4px 4px 0 0; font-weight:600; font-size:13px;\">  共用身份证号</div><div style=\"background:#f0f4f8; padding:4px 10px; border-bottom:1px solid #dee2e6; font-size:11px; color:#444;\">  ID值: <b>1f611f1cffbf451e39d5b0fa66a0…</b>  &nbsp;·&nbsp; 连接保单数: <b>5</b></div><div style=\"padding:5px 10px 2px 10px; font-size:11px; font-weight:600; color:#555;\">直连保单（5 个）</div><div style=\"padding:3px 10px; font-size:12px; border-bottom:1px solid #f0f0f0; font-family:monospace;\">IH1100514247175041</div><div style=\"padding:3px 10px; font-size:12px; border-bottom:1px solid #f0f0f0; font-family:monospace;\">IH1100545826964065</div><div style=\"padding:3px 10px; font-size:12px; border-bottom:1px solid #f0f0f0; font-family:monospace;\">IH1100585718040182</div><div style=\"padding:3px 10px; font-size:12px; border-bottom:1px solid #f0f0f0; font-family:monospace;\">IH1100592052259208</div><div style=\"padding:3px 10px; font-size:12px; border-bottom:1px solid #f0f0f0; font-family:monospace;\">PI157DH250495586222564</div></div>", "__id__共用身份证号__18980660f2e21f45a3ff7159fba4e42b": "<div style=\"font-family:Arial,sans-serif; font-size:12px; max-width:320px;\"><div style=\"background:#e15759; color:#fff; padding:5px 10px; border-radius:4px 4px 0 0; font-weight:600; font-size:13px;\">  共用身份证号</div><div style=\"background:#f0f4f8; padding:4px 10px; border-bottom:1px solid #dee2e6; font-size:11px; color:#444;\">  ID值: <b>18980660f2e21f45a3ff7159fba4…</b>  &nbsp;·&nbsp; 连接保单数: <b>5</b></div><div style=\"padding:5px 10px 2px 10px; font-size:11px; font-weight:600; color:#555;\">直连保单（5 个）</div><div style=\"padding:3px 10px; font-size:12px; border-bottom:1px solid #f0f0f0; font-family:monospace;\">IH1100514246268024</div><div style=\"padding:3px 10px; font-size:12px; border-bottom:1px solid #f0f0f0; font-family:monospace;\">IH1100545830018745</div><div style=\"padding:3px 10px; font-size:12px; border-bottom:1px solid #f0f0f0; font-family:monospace;\">IH1100585714488564</div><div style=\"padding:3px 10px; font-size:12px; border-bottom:1px solid #f0f0f0; font-family:monospace;\">IH1100592050330309</div><div style=\"padding:3px 10px; font-size:12px; border-bottom:1px solid #f0f0f0; font-family:monospace;\">PI157DH250495585836942</div></div>", "__id__共用身份证号__3028b0bc9e5059151f2a4471f530b903": "<div style=\"font-family:Arial,sans-serif; font-size:12px; max-width:320px;\"><div style=\"background:#e15759; color:#fff; padding:5px 10px; border-radius:4px 4px 0 0; font-weight:600; font-size:13px;\">  共用身份证号</div><div style=\"background:#f0f4f8; padding:4px 10px; border-bottom:1px solid #dee2e6; font-size:11px; color:#444;\">  ID值: <b>3028b0bc9e5059151f2a4471f530…</b>  &nbsp;·&nbsp; 连接保单数: <b>5</b></div><div style=\"padding:5px 10px 2px 10px; font-size:11px; font-weight:600; color:#555;\">直连保单（5 个）</div><div style=\"padding:3px 10px; font-size:12px; border-bottom:1px solid #f0f0f0; font-family:monospace;\">IH1100514245805770</div><div style=\"padding:3px 10px; font-size:12px; border-bottom:1px solid #f0f0f0; font-family:monospace;\">IH1100545826485193</div><div style=\"padding:3px 10px; font-size:12px; border-bottom:1px solid #f0f0f0; font-family:monospace;\">IH1100585716438801</div><div style=\"padding:3px 10px; font-size:12px; border-bottom:1px solid #f0f0f0; font-family:monospace;\">IH1100592052734790</div><div style=\"padding:3px 10px; font-size:12px; border-bottom:1px solid #f0f0f0; font-family:monospace;\">PI157DH250495586850800</div></div>", "__id__共用身份证号__fce447181f2e807363ad99f4cee1160d": "<div style=\"font-family:Arial,sans-serif; font-size:12px; max-width:320px;\"><div style=\"background:#e15759; color:#fff; padding:5px 10px; border-radius:4px 4px 0 0; font-weight:600; font-size:13px;\">  共用身份证号</div><div style=\"background:#f0f4f8; padding:4px 10px; border-bottom:1px solid #dee2e6; font-size:11px; color:#444;\">  ID值: <b>fce447181f2e807363ad99f4cee1…</b>  &nbsp;·&nbsp; 连接保单数: <b>3</b></div><div style=\"padding:5px 10px 2px 10px; font-size:11px; font-weight:600; color:#555;\">直连保单（3 个）</div><div style=\"padding:3px 10px; font-size:12px; border-bottom:1px solid #f0f0f0; font-family:monospace;\">IH1100536871485914</div><div style=\"padding:3px 10px; font-size:12px; border-bottom:1px solid #f0f0f0; font-family:monospace;\">IH1100585086190314</div><div style=\"padding:3px 10px; font-size:12px; border-bottom:1px solid #f0f0f0; font-family:monospace;\">PI157DH250495586222609</div></div>"};
+    var tipEl    = document.getElementById('custom-node-tooltip');
+    var mouseX   = 0;
+    var mouseY   = 0;
+
+    document.addEventListener('mousemove', function(e) {
+        mouseX = e.clientX;
+        mouseY = e.clientY;
+        if (tipEl && tipEl.style.display !== 'none') repositionTip();
+    });
+
+    function repositionTip() {
+        var GAP = 16;
+        var vw  = window.innerWidth  || document.documentElement.clientWidth;
+        var vh  = window.innerHeight || document.documentElement.clientHeight;
+        var w   = tipEl.offsetWidth  || 360;
+        var h   = tipEl.offsetHeight || 200;
+        var x   = mouseX + GAP;
+        var y   = mouseY + GAP;
+        if (x + w > vw) x = mouseX - w - GAP;
+        if (y + h > vh) y = mouseY - h - GAP;
+        if (x < 0) x = 4;
+        if (y < 0) y = 4;
+        tipEl.style.left = x + 'px';
+        tipEl.style.top  = y + 'px';
+    }
+
+    // 等待 network 对象就绪（pyvis 在同一脚本块里创建，通常同步可得）
+    function attachNetworkEvents() {
+        if (typeof network === 'undefined' || !network) {
+            setTimeout(attachNetworkEvents, 100);
+            return;
+        }
+        network.on('hoverNode', function(params) {
+            var html = TOOLTIPS[params.node];
+            if (!html || !tipEl) return;
+            tipEl.innerHTML = html;
+            tipEl.style.display = 'block';
+            repositionTip();
+        });
+        network.on('blurNode', function() {
+            if (tipEl) tipEl.style.display = 'none';
+        });
+    }
+    attachNetworkEvents();
+})();
+</script>
+
+</body>
+</html>
