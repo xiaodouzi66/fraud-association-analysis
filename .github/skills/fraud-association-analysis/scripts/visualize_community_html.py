@@ -469,7 +469,11 @@ def render_pyvis_graph(
             "minVelocity": 0.1,
             "solver": "forceAtlas2Based"
           }
-        }
+                    ,
+                    "configure": {
+                        "enabled": true
+                    }
+                }
         """
     )
 
@@ -479,18 +483,18 @@ def render_pyvis_graph(
     net.show(output_path, notebook=False)
 
     with open(output_path, "a", encoding="utf-8") as f:
-        legend_html = (
-            "<div style=\"position:absolute; top:50px; right:10px; background:rgba(255,255,255,0.92); "
-            "padding:12px; border:1px solid #ccc; border-radius:6px; font-family:Arial; font-size:12px;\">"
-            f"<h4 style='margin:0 0 8px 0;'>{title}</h4>"
-            "<p style='margin:4px 0;'><span style='display:inline-block;width:12px;height:12px;background:#4e79a7;margin-right:6px;'></span>保单号</p>"
-            "<p style='margin:4px 0;'><span style='display:inline-block;width:12px;height:12px;background:#f28e2b;margin-right:6px;'></span>手机号</p>"
-            "<p style='margin:4px 0;'><span style='display:inline-block;width:12px;height:12px;background:#e15759;margin-right:6px;'></span>身份证号</p>"
-            "<p style='margin:4px 0;'><span style='display:inline-block;width:12px;height:12px;background:#76b7b2;margin-right:6px;'></span>邮箱</p>"
-            "<p style='margin:4px 0;'><span style='display:inline-block;width:12px;height:12px;background:#59a14f;margin-right:6px;'></span>代理人ID</p>"
-            "<p style='margin:4px 0;'><span style='display:inline-block;width:12px;height:12px;background:#edc948;margin-right:6px;'></span>银行卡号</p>"
-            "</div>"
-        )
+        # place legend in bottom-right to avoid overlapping top-right controls
+        legend_html = f"""
+<div style="position:absolute; bottom:12px; right:12px; top:auto; background:rgba(255,255,255,0.92); padding:10px; border:1px solid #ccc; border-radius:6px; font-family:Arial; font-size:12px; max-width:220px; box-shadow:0 2px 6px rgba(0,0,0,0.12);">
+  <h4 style="margin:0 0 6px 0;font-size:13px;">{title}</h4>
+  <p style="margin:3px 0;line-height:1;"><span style="display:inline-block;width:12px;height:12px;background:#4e79a7;margin-right:6px;"></span>保单号</p>
+  <p style="margin:3px 0;line-height:1;"><span style="display:inline-block;width:12px;height:12px;background:#f28e2b;margin-right:6px;"></span>手机号</p>
+  <p style="margin:3px 0;line-height:1;"><span style="display:inline-block;width:12px;height:12px;background:#e15759;margin-right:6px;"></span>身份证号</p>
+  <p style="margin:3px 0;line-height:1;"><span style="display:inline-block;width:12px;height:12px;background:#76b7b2;margin-right:6px;"></span>邮箱</p>
+  <p style="margin:3px 0;line-height:1;"><span style="display:inline-block;width:12px;height:12px;background:#59a14f;margin-right:6px;"></span>代理人ID</p>
+  <p style="margin:3px 0;line-height:1;"><span style="display:inline-block;width:12px;height:12px;background:#edc948;margin-right:6px;"></span>银行卡号</p>
+</div>
+"""
         f.write(legend_html)
 
     return output_path
